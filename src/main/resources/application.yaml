@@ -7,7 +7,7 @@ spring:
   #datasource
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
-    url: jdbc:mysql://127.0.0.1:3306/test?characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://127.0.0.1:3306/claude_code?characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
     password: root
@@ -36,6 +36,13 @@ spring:
       # 合并多个DruidDataSource的监控数据 http://localhost:8100/demo/druid/index.html
       # admin/admin
       useGlobalDataSourceStat: true
+  # MongoDB
+  data:
+    mongodb:
+      host: 127.0.0.1
+      port: 27017
+      database: claude_code
+      # 无密码，不需要 username/password 配置
 #mybatis
 mybatis:
   mapper-locations: classpath:mapper/*.xml
