@@ -1,9 +1,13 @@
 server:
-  port: 8080
+  port: 8081
 
 spring:
   application:
     name: springboot-cloudecode
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
   #datasource
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
