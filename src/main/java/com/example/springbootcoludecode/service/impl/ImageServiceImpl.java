@@ -126,25 +126,50 @@ public class ImageServiceImpl implements ImageService {
     }
 
     @Override
-    public ApiResponse update(ImageUpdateRequest request) {
-        if (request.getId() == null || request.getId().trim().isEmpty()) {
+    public ApiResponse update(String id, MultipartFile file, String title, String description, String tags, String uploader) {
+        if (id == null || id.trim().isEmpty()) {
             return ApiResponse.error(400, "ID 不能为空");
         }
-        ImageMetadata meta = mongoTemplate.findById(request.getId().trim(), ImageMetadata.class);
+        ImageMetadata meta = mongoTemplate.findById(id.trim(), ImageMetadata.class);
         if (meta == null) {
             return ApiResponse.error(400, "记录不存在");
         }
-        if (request.getTitle() != null && !request.getTitle().trim().isEmpty()) {
-            meta.setTitle(request.getTitle().trim());
+
+        // 传了文件则替换 GridFS 图片：先存新文件，成功后删除旧文件，避免存新失败导致图片丢失
+        if (file != null && !file.isEmpty()) {
+            try {
+                ObjectId newFileId = gridFsTemplate.store(
+                        file.getInputStream(),
+                        file.getOriginalFilename(),
+                        file.getContentType()
+                );
+                if (meta.getGridFsFileId() != null) {
+                    try {
+                        ObjectId oldFileId = new ObjectId(meta.getGridFsFileId());
+                        gridFsTemplate.delete(new Query(Criteria.where("_id").is(oldFileId)));
+                    } catch (Exception e) {
+                        // 旧文件删除失败不阻断更新
+                    }
+                }
+                meta.setGridFsFileId(newFileId.toString());
+                meta.setFileName(file.getOriginalFilename());
+                meta.setFileSize(String.valueOf(file.getSize()));
+            } catch (IOException e) {
+                return ApiResponse.error(500, "文件上传失败: " + e.getMessage());
+            }
         }
-        if (request.getDescription() != null && !request.getDescription().trim().isEmpty()) {
-            meta.setDescription(request.getDescription().trim());
+
+        if (title != null && !title.trim().isEmpty()) {
+            meta.setTitle(title.trim());
         }
-        if (request.getTags() != null && !request.getTags().trim().isEmpty()) {
-            meta.setTags(request.getTags().trim());
+        if (description != null && !description.trim().isEmpty()) {
+            meta.setDescription(description.trim());
         }
-        if (request.getUploader() != null && !request.getUploader().trim().isEmpty()) {
-            meta.setUploader(request.getUploader().trim());
+        if (tags != null && !tags.trim().isEmpty()) {
+            meta.setTags(tags.trim());
+        }
+        if (uploader != null && !uploader.trim().isEmpty()) {
+            meta.setUploader(uploader.trim());
         }
         mongoTemplate.save(meta);
         return ApiResponse.success(meta);

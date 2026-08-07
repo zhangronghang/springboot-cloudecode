@@ -52,7 +52,7 @@ MongoTemplate / GridFsTemplate（直接操作 MongoDB）
 
 - **Controller 层**: `@RestController`，路径前缀 `/api/images`，接收请求参数并委托给 Service
 - **Service 层**: 接口定义在 `service/` 包，实现类在 `service/impl/` 包。直接注入 `MongoTemplate` 和 `GridFsTemplate`，不经过 DAO/Repository 层
-- **DTO 层**: 每个 API 操作有独立的 Request DTO（`ImageListRequest`、`ImageDetailRequest`、`ImageUpdateRequest`、`ImageDeleteRequest`），统一响应格式 `ApiResponse`（code + message + data）
+- **DTO 层**: 查询与删除类 API 操作有独立的 Request DTO（`ImageListRequest`、`ImageDetailRequest`、`ImageDeleteRequest`），统一响应格式 `ApiResponse`（code + message + data）；upload/update 直接使用 `@RequestParam` 接收 multipart/form-data（upload 的 file/title 必填，update 的 file 可选）
 - **Entity 层**: `ImageMetadata` 使用 `@Document` 映射到 MongoDB collection `image_metadata`。**注意此实体使用手动编写的 getter/setter，未使用 Lombok `@Data`**
 
 ### API 设计约定
@@ -80,3 +80,9 @@ MongoTemplate / GridFsTemplate（直接操作 MongoDB）
 **Lombok**: 在 `maven-compiler-plugin` 中为 `default-compile` 和 `default-testCompile` 两个执行阶段显式配置了 `<annotationProcessorPaths>`。如果 IDE 报 Lombok 相关错误，请确保已在 IDE 设置中启用注解处理。注意：`ImageMetadata` 实体类未使用 Lombok，其 getter/setter 为手动编写。
 
 **包结构**: 目前所有代码位于 `com.example.springbootcoludecode` 包下。MyBatis 类型别名已配置为指向此包，实体类应放在此包或其子包下。Mapper XML 文件应放在 `src/main/resources/mapper/` 目录中。
+
+### 参考资料
+
+- **接口设计文档**: `docs/superpowers/specs/2026-06-27-image-upload-api-design.md` — 图片上传模块的权威 API 契约，包含数据模型、各接口请求/响应格式、GridFS 操作流程与错误处理约定。修改或扩展图片相关接口前优先参考此文档，保持接口行为与文档一致。
+- **实现计划**: `docs/superpowers/plans/2026-06-27-image-upload-api-plan.md`
+- **开发工作流**: 本仓库使用 superpowers 工作流，`.superpowers/sdd/` 保存子代理驱动的任务简报与报告，`docs/superpowers/` 保存 spec 与 plan 产物。新功能开发按 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` 流程推进。

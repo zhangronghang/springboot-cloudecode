@@ -7,6 +7,6 @@ public interface ImageService {
     ApiResponse upload(MultipartFile file, String title, String description, String tags, String uploader);
     ApiResponse list(ImageListRequest request);
     ApiResponse detail(ImageDetailRequest request);
-    ApiResponse update(ImageUpdateRequest request);
+    ApiResponse update(String id, MultipartFile file, String title, String description, String tags, String uploader);
     ApiResponse delete(ImageDeleteRequest request);
 }

@@ -171,11 +171,6 @@ public class ImageServiceImplTest {
 
     @Test
     void update_shouldUpdateFields() {
-        ImageUpdateRequest request = new ImageUpdateRequest();
-        request.setId("507f1f77bcf86cd799439011");
-        request.setTitle("新标题");
-        request.setDescription("新描述");
-
         ImageMetadata existing = new ImageMetadata();
         existing.setId("507f1f77bcf86cd799439011");
         existing.setTitle("旧标题");
@@ -183,7 +178,7 @@ public class ImageServiceImplTest {
         existing.setTags("旧标签");
         when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(existing);
 
-        ApiResponse response = imageService.update(request);
+        ApiResponse response = imageService.update("507f1f77bcf86cd799439011", null, "新标题", "新描述", null, null);
 
         assertEquals(200, response.getCode());
         ImageMetadata updated = (ImageMetadata) response.getData();
@@ -195,16 +190,41 @@ public class ImageServiceImplTest {
 
     @Test
     void update_shouldReturn404WhenNotFound() {
-        ImageUpdateRequest request = new ImageUpdateRequest();
-        request.setId("nonexistent");
-        request.setTitle("新标题");
         when(mongoTemplate.findById("nonexistent", ImageMetadata.class)).thenReturn(null);
 
-        ApiResponse response = imageService.update(request);
+        ApiResponse response = imageService.update("nonexistent", null, "新标题", null, null, null);
 
         assertEquals(400, response.getCode());
         assertEquals("记录不存在", response.getMessage());
         verify(mongoTemplate, never()).save(any());
+    }
+
+    @Test
+    void update_shouldReplaceImageFile() throws Exception {
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.getOriginalFilename()).thenReturn("new.jpg");
+        when(file.getContentType()).thenReturn("image/jpeg");
+        when(file.getSize()).thenReturn(2048L);
+        when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[2048]));
+
+        org.bson.types.ObjectId newGridFsId = new org.bson.types.ObjectId();
+        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString())).thenReturn(newGridFsId);
+
+        ImageMetadata existing = new ImageMetadata();
+        existing.setId("507f1f77bcf86cd799439011");
+        existing.setGridFsFileId("507f1f77bcf86cd799439022");
+        when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(existing);
+
+        ApiResponse response = imageService.update("507f1f77bcf86cd799439011", file, "新标题", null, null, null);
+
+        assertEquals(200, response.getCode());
+        verify(gridFsTemplate).delete(any(Query.class)); // 旧 GridFS 文件被删除
+        ImageMetadata updated = (ImageMetadata) response.getData();
+        assertEquals(newGridFsId.toString(), updated.getGridFsFileId());
+        assertEquals("new.jpg", updated.getFileName());
+        assertEquals("2048", updated.getFileSize());
+        assertEquals("新标题", updated.getTitle());
+        verify(mongoTemplate).save(existing);
     }
 
     @Test

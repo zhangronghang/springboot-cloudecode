@@ -33,8 +33,13 @@ public class ImageController {
     }
 
     @PostMapping("/update")
-    public ApiResponse update(@RequestBody ImageUpdateRequest request) {
-        return imageService.update(request);
+    public ApiResponse update(@RequestParam("id") String id,
+                              @RequestParam(value = "file", required = false) MultipartFile file,
+                              @RequestParam(value = "title", required = false) String title,
+                              @RequestParam(value = "description", required = false) String description,
+                              @RequestParam(value = "tags", required = false) String tags,
+                              @RequestParam(value = "uploader", required = false) String uploader) {
+        return imageService.update(id, file, title, description, tags, uploader);
     }
 
     @PostMapping("/delete")

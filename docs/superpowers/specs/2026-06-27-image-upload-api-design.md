@@ -92,11 +92,14 @@ Collection: `image_metadata`
 
 ### POST `/api/images/update`
 
-更新备注信息。
+更新备注信息，可选地替换图片文件。
 
-- Body:
+- Content-Type: `multipart/form-data`
+- 参数:
   - `id`: 记录 ID（必填）
-  - `title`、`description`、`tags`、`uploader`（至少填一项）
+  - `file`: 新图片文件（可选；传了则替换 GridFS 图片，先存新文件成功后删除旧文件）
+  - `title`、`description`、`tags`、`uploader`: 需更新的元数据字段（可选，非空才覆盖）
+- 替换图片时自动更新 `gridFsFileId`、`fileName`、`fileSize`
 
 ### POST `/api/images/delete`
 
@@ -146,7 +149,6 @@ src/main/java/com/example/springbootcoludecode/
 ├── dto/
 │   ├── ImageListRequest.java
 │   ├── ImageDetailRequest.java
-│   ├── ImageUpdateRequest.java
 │   ├── ImageDeleteRequest.java
 │   └── ApiResponse.java
 └── config/
