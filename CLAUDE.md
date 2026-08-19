@@ -83,6 +83,5 @@ MongoTemplate / GridFsTemplate（直接操作 MongoDB）
 
 ### 参考资料
 
-- **接口设计文档**: `docs/superpowers/specs/2026-06-27-image-upload-api-design.md` — 图片上传模块的权威 API 契约，包含数据模型、各接口请求/响应格式、GridFS 操作流程与错误处理约定。修改或扩展图片相关接口前优先参考此文档，保持接口行为与文档一致。
-- **实现计划**: `docs/superpowers/plans/2026-06-27-image-upload-api-plan.md`
-- **开发工作流**: 本仓库使用 superpowers 工作流，`.superpowers/sdd/` 保存子代理驱动的任务简报与报告，`docs/superpowers/` 保存 spec 与 plan 产物。新功能开发按 `superpowers:brainstorming` → `writing-plans` → `subagent-driven-development` 流程推进。
+- **接口规格**: `openspec/specs/image-upload/spec.md` — 图片上传模块的权威行为契约，包含统一响应格式、各接口（upload/list/detail/update/delete）的 requirement 与 scenario、元数据字段定义。修改或扩展图片相关接口前优先参考此 spec，保持接口行为一致。
+- **开发工作流**: 本仓库使用 OpenSpec 进行 spec-driven 开发，`openspec/specs/` 保存主规格，`openspec/changes/` 保存变更提案。新功能开发按 `/openspec-propose` → `/openspec-apply-change` → `/openspec-archive-change` 流程推进。

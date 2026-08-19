@@ -1,0 +1,56 @@
+schema: spec-driven
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+context: |
+  Tech stack: Spring Boot 2.3.6, Java 8, Spring MVC (spring-boot-starter-web),
+  MyBatis 2.1.4, Druid 1.2.15, MySQL, MongoDB (spring-boot-starter-data-mongodb), Lombok.
+
+  Architecture: standard three-layer (Controller -> Service interface -> Service/impl),
+  Service directly injects MongoTemplate and GridFsTemplate (no DAO/Repository layer).
+  Package root: com.example.springbootcoludecode.
+
+  Core module: image upload + metadata management.
+  - Files stored in MongoDB GridFS (GridFsTemplate), returns ObjectId as file id.
+  - Metadata stored in collection image_metadata (MongoTemplate, entity ImageMetadata,
+    manual getters/setters, NOT Lombok @Data).
+  - Note: MyBatis is configured but currently no mapper XML exists; data access is MongoTemplate/GridFsTemplate only.
+
+  API conventions:
+  - All endpoints use @PostMapping (including queries like list/detail), never GET.
+  - Unified response ApiResponse (code 200/400/500 + message + data).
+  - GlobalExceptionHandler (@ControllerAdvice) handles MaxUploadSizeExceededException,
+    IllegalArgumentException, and generic Exception.
+  - Query/delete APIs use @RequestBody JSON DTOs; upload/update use @RequestParam multipart/form-data.
+
+  Storage: GridFS for binary, image_metadata for meta; list supports tag fuzzy + uploader exact
+  filters, uploadTime desc, page/size pagination; detail returns Base64-encoded image bytes;
+  delete removes both GridFS file and metadata.
+
+  Tests: integration via @SpringBootTest; unit via pure Mockito (@Mock + @InjectMocks,
+  no Spring context), mocking MongoTemplate and GridFsTemplate.
+
+  Language: output and comments in Chinese.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
