@@ -1,8 +1,15 @@
 package com.example.springbootcoludecode.dto;
 
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+
+@ApiModel(description = "统一接口响应")
 public class ApiResponse {
+    @ApiModelProperty(value = "状态码：200 成功、400 参数错误、500 服务端错误", example = "200")
     private int code;
+    @ApiModelProperty(value = "响应消息", example = "success")
     private String message;
+    @ApiModelProperty(value = "业务数据；失败时为 null")
     private Object data;
 
     public ApiResponse() {}
