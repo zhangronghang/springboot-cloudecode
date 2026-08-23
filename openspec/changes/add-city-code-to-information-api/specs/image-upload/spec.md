@@ -1,0 +1,91 @@
+## MODIFIED Requirements
+
+### Requirement: 图片上传
+系统 SHALL 支持通过 multipart/form-data 上传图片文件及备注信息，其中 file、title、cityCode 和 districtCode 均为必填非空字段，provinceCode 为可选字段。系统 SHALL 对三个行政区划代码去除首尾空白，但不校验字符组成、长度或上下级关系；provinceCode 缺失或仅包含空白时 SHALL 保存为空字符串。系统 SHALL 持久化图片文件和元数据，并在首次上传时使用同一个当前时间值填写 createTime 与 uploadTime。
+
+#### Scenario: 上传成功
+- **WHEN** 提交有效的图片文件、非空的 title、provinceCode、cityCode 和 districtCode
+- **THEN** 图片文件被持久化，元数据包含去除首尾空白后的三个行政区划代码，返回 code=200 及完整记录（含 id）
+- **AND** createTime 与 uploadTime 完全相同且均符合 `yyyyMMddHHmmss`
+
+#### Scenario: 缺少省级行政区划代码
+- **WHEN** 提交有效的 file、title、cityCode 和 districtCode，但 provinceCode 缺失、为空或仅包含空白字符
+- **THEN** 上传成功且持久化的 provinceCode 为 `""`
+
+#### Scenario: 接受任意非空行政区代码
+- **WHEN** cityCode 与 districtCode 非空但不符合六位数字格式或行政区上下级关系
+- **THEN** 系统不因字符组成、长度或层级关系拒绝本次上传
+
+#### Scenario: 缺少图片文件
+- **WHEN** file 为空
+- **THEN** 返回 code=400，提示图片文件不能为空
+
+#### Scenario: 缺少标题
+- **WHEN** title 为空
+- **THEN** 返回 code=400，提示标题不能为空
+
+#### Scenario: 缺少市级行政区划代码
+- **WHEN** cityCode 缺失、为空或仅包含空白字符
+- **THEN** 返回 code=400，提示市级行政区划代码不能为空
+
+#### Scenario: 缺少区县级行政区划代码
+- **WHEN** districtCode 缺失、为空或仅包含空白字符
+- **THEN** 返回 code=400，提示区县级行政区划代码不能为空
+
+### Requirement: 列表分页查询
+系统 SHALL 支持分页查询元数据列表，支持按标签模糊匹配，以及按上传者、provinceCode、cityCode、districtCode 精确匹配过滤；多个筛选条件同时提供时 SHALL 同时满足所有条件，空白筛选值 SHALL 被忽略，并按 uploadTime 降序排列。
+
+#### Scenario: 分页查询
+- **WHEN** 提交 page 与 size（默认分别为 1 与 10）
+- **THEN** 返回 total、page、size 与 records 列表
+
+#### Scenario: 按标签与上传者过滤
+- **WHEN** 提供 tag 或 uploader 筛选条件
+- **THEN** 仅返回标签模糊匹配、上传者精确匹配的记录
+
+#### Scenario: 按行政区过滤
+- **WHEN** 提供 provinceCode、cityCode 或 districtCode 中的任意非空筛选条件
+- **THEN** 仅返回对应字段精确匹配的记录
+
+#### Scenario: 组合筛选
+- **WHEN** 同时提供 tag、uploader、provinceCode、cityCode 和 districtCode 中的多个非空条件
+- **THEN** 仅返回同时满足全部已提供条件的记录
+
+#### Scenario: 忽略空白行政区筛选
+- **WHEN** provinceCode、cityCode 或 districtCode 的查询值缺失、为空或仅包含空白字符
+- **THEN** 系统不为对应字段添加查询条件
+
+### Requirement: 更新备注
+系统 SHALL 支持根据 id 更新记录的 title、description、tags、uploader 等元数据字段（仅非空字段被覆盖），并可选择性地替换图片文件。provinceCode、cityCode 与 districtCode 不属于可更新字段。任意元数据字段实际更新或图片文件替换成功时，系统 SHALL 将 uploadTime 设置为符合 `yyyyMMddHHmmss` 的当前时间，并保持 createTime 不变。
+
+#### Scenario: 更新元数据字段
+- **WHEN** 提供 id 及至少一个非空的可更新字段（title、description、tags、uploader）
+- **THEN** 仅覆盖非空字段，未提供的字段保持不变，uploadTime 更新为当前时间，返回更新后的记录
+
+#### Scenario: 替换图片文件
+- **WHEN** 提供新的图片文件
+- **THEN** 新文件持久化成功后再删除旧文件，并更新 gridFsFileId、fileName、fileSize 和 uploadTime
+- **AND** createTime 保持不变
+
+#### Scenario: 尝试修改行政区字段
+- **WHEN** 更新请求中携带 provinceCode、cityCode 或 districtCode
+- **THEN** 已存储的三个行政区划字段保持不变
+
+#### Scenario: 记录不存在
+- **WHEN** 提供的 id 对应记录不存在
+- **THEN** 返回 code=400，提示记录不存在
+
+### Requirement: 元数据字段
+图片元数据记录 SHALL 包含以下字符串字段：id（自动生成）、title（标题）、description（描述）、tags（标签，逗号分隔）、uploader（上传者）、provinceCode（省级行政区划代码）、cityCode（市级行政区划代码）、districtCode（区县级行政区划代码）、createTime（创建时间）、uploadTime（最近一次上传或更新的时间）、fileSize（文件大小字节数，自动获取）、fileName（原始文件名，自动获取）、gridFsFileId（图片文件标识）。createTime 与 uploadTime SHALL 使用 `yyyyMMddHHmmss` 格式。
+
+#### Scenario: 记录字段完整
+- **WHEN** 新记录被创建
+- **THEN** 记录包含上述全部字段，其中自动字段由系统填充，三个行政区划字段使用规范化后的上传请求值
+
+#### Scenario: 创建时间不可变
+- **WHEN** 已有记录的元数据或图片文件被更新
+- **THEN** createTime 保持首次创建时的值不变
+
+#### Scenario: 兼容缺少市级代码的旧记录
+- **WHEN** 读取、查询、更新或删除历史记录且该记录不存在 cityCode 字段
+- **THEN** 系统继续正常处理该记录，不因 cityCode 缺失而报错，也不自动补写该字段

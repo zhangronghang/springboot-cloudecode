@@ -11,3 +11,7 @@
 ```powershell
 .\mvnw.cmd -s 'D:\develop\IntelliJ IDEA 2026.1.2\plugins\maven\lib\maven3\conf\settings.xml' test
 ```
+
+## Git
+
+创建 Git 提交时，提交说明必须使用中文。
