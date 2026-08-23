@@ -43,12 +43,6 @@ public class ImageServiceImpl implements ImageService {
         if (title == null || title.trim().isEmpty()) {
             return ApiResponse.error(400, "标题不能为空");
         }
-        if (cityCode == null || cityCode.trim().isEmpty()) {
-            return ApiResponse.error(400, "市级行政区划代码不能为空");
-        }
-        if (districtCode == null || districtCode.trim().isEmpty()) {
-            return ApiResponse.error(400, "区县级行政区划代码不能为空");
-        }
         try {
             ObjectId gridFsFileId = gridFsTemplate.store(
                     file.getInputStream(),
@@ -62,8 +56,8 @@ public class ImageServiceImpl implements ImageService {
             meta.setTags(tags != null ? tags.trim() : "");
             meta.setUploader(uploader != null ? uploader.trim() : "");
             meta.setProvinceCode(provinceCode == null ? "" : provinceCode.trim());
-            meta.setCityCode(cityCode.trim());
-            meta.setDistrictCode(districtCode.trim());
+            meta.setCityCode(cityCode == null ? "" : cityCode.trim());
+            meta.setDistrictCode(districtCode == null ? "" : districtCode.trim());
             String currentTime = LocalDateTime.now().format(TIME_FORMATTER);
             meta.setCreateTime(currentTime);
             meta.setUploadTime(currentTime);

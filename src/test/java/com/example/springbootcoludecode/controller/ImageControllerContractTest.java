@@ -63,37 +63,37 @@ class ImageControllerContractTest {
     }
 
     @Test
-    void requiresCityAndDistrictCodesWhenUploadingInformation() throws Exception {
+    void allowsMissingAdministrativeCodesWhenUploadingInformation() throws Exception {
         when(imageService.upload(any(), any(), any(), any(), any(), any(), any(), any()))
-                .thenAnswer(invocation -> {
-                    String cityCode = invocation.getArgument(3);
-                    String districtCode = invocation.getArgument(4);
-                    if (cityCode == null || cityCode.trim().isEmpty()) {
-                        return ApiResponse.error(400, "市级行政区划代码不能为空");
-                    }
-                    if (districtCode == null || districtCode.trim().isEmpty()) {
-                        return ApiResponse.error(400, "区县级行政区划代码不能为空");
-                    }
-                    return ApiResponse.success(null);
-                });
+                .thenReturn(ApiResponse.success(null));
         MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
 
         mockMvc.perform(multipart("/api/information/upload")
-                .file(file)
-                .param("title", "测试图片")
-                .param("provinceCode", "11")
-                .param("districtCode", "1101"))
+                        .file(file)
+                        .param("title", "测试图片"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("市级行政区划代码不能为空"));
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    void allowsPartialOrBlankAdministrativeCodesWhenUploadingInformation() throws Exception {
+        when(imageService.upload(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(ApiResponse.success(null));
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
+
         mockMvc.perform(multipart("/api/information/upload")
-                .file(file)
-                .param("title", "测试图片")
-                .param("provinceCode", "11")
-                .param("cityCode", "1101"))
+                        .file(file)
+                        .param("title", "测试图片")
+                        .param("districtCode", "district-only"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.message").value("区县级行政区划代码不能为空"));
+                .andExpect(jsonPath("$.code").value(200));
+        mockMvc.perform(multipart("/api/information/upload")
+                        .file(file)
+                        .param("title", "测试图片")
+                        .param("provinceCode", "   ")
+                        .param("cityCode", "city-only"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
     }
 
     @Test

@@ -105,23 +105,33 @@ public class ImageServiceImplTest {
     }
 
     @Test
-    void upload_shouldRejectBlankCityAndDistrictCodes() throws Exception {
+    void upload_shouldStoreEmptyAdministrativeCodesWhenAllAreMissing() throws Exception {
         MultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
         when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString()))
                 .thenReturn(new org.bson.types.ObjectId());
 
-        ApiResponse missingCity = imageService.upload(file, "标题", "11", " ", "1101", null, null, null);
-        ApiResponse missingDistrict = imageService.upload(file, "标题", "11", "1101", " ", null, null, null);
-        ApiResponse nullCity = imageService.upload(file, "标题", "11", null, "1101", null, null, null);
-        ApiResponse nullDistrict = imageService.upload(file, "标题", "11", "1101", null, null, null, null);
+        ApiResponse response = imageService.upload(file, "标题", null, null, null, null, null, null);
 
-        assertEquals(400, missingCity.getCode());
-        assertEquals("市级行政区划代码不能为空", missingCity.getMessage());
-        assertEquals(400, missingDistrict.getCode());
-        assertEquals("区县级行政区划代码不能为空", missingDistrict.getMessage());
-        assertEquals("市级行政区划代码不能为空", nullCity.getMessage());
-        assertEquals("区县级行政区划代码不能为空", nullDistrict.getMessage());
-        verifyNoInteractions(gridFsTemplate, mongoTemplate);
+        assertEquals(200, response.getCode());
+        ImageMetadata metadata = (ImageMetadata) response.getData();
+        assertEquals("", metadata.getProvinceCode());
+        assertEquals("", metadata.getCityCode());
+        assertEquals("", metadata.getDistrictCode());
+    }
+
+    @Test
+    void upload_shouldNormalizePartialAdministrativeCodesIndependently() throws Exception {
+        MultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
+        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString()))
+                .thenReturn(new org.bson.types.ObjectId());
+
+        ApiResponse response = imageService.upload(file, "标题", "   ", " city-X ", " ", null, null, null);
+
+        assertEquals(200, response.getCode());
+        ImageMetadata metadata = (ImageMetadata) response.getData();
+        assertEquals("", metadata.getProvinceCode());
+        assertEquals("city-X", metadata.getCityCode());
+        assertEquals("", metadata.getDistrictCode());
     }
 
     @Test

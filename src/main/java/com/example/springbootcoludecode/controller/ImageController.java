@@ -19,16 +19,16 @@ public class ImageController {
     private ImageService imageService;
 
     @PostMapping("/upload")
-    @ApiOperation(value = "上传信息图片", notes = "以 multipart/form-data 提交图片文件和备注信息；provinceCode 可选，cityCode、districtCode 必填。")
+    @ApiOperation(value = "上传信息图片", notes = "以 multipart/form-data 提交图片文件和备注信息；provinceCode、cityCode、districtCode 均可选，缺失或空白保存为空字符串。")
     @ApiResponses({
             @io.swagger.annotations.ApiResponse(code = 200, message = "上传成功"),
-            @io.swagger.annotations.ApiResponse(code = 400, message = "图片文件、标题、cityCode 或 districtCode 为空")
+            @io.swagger.annotations.ApiResponse(code = 400, message = "图片文件或标题为空")
     })
     public ApiResponse upload(@ApiParam(value = "图片文件", required = true) @RequestParam("file") MultipartFile file,
                               @ApiParam(value = "图片标题", required = true) @RequestParam("title") String title,
-                              @ApiParam(value = "省级行政区划代码", example = "110000") @RequestParam(value = "provinceCode", required = false) String provinceCode,
-                              @ApiParam(value = "市级行政区划代码", required = true, example = "110100") @RequestParam(value = "cityCode", required = false) String cityCode,
-                              @ApiParam(value = "区县级行政区划代码", required = true, example = "110101") @RequestParam(value = "districtCode", required = false) String districtCode,
+                              @ApiParam(value = "省级行政区划代码，可选；缺失或空白保存为空字符串", example = "110000") @RequestParam(value = "provinceCode", required = false) String provinceCode,
+                              @ApiParam(value = "市级行政区划代码，可选；缺失或空白保存为空字符串", example = "110100") @RequestParam(value = "cityCode", required = false) String cityCode,
+                              @ApiParam(value = "区县级行政区划代码，可选；缺失或空白保存为空字符串", example = "110101") @RequestParam(value = "districtCode", required = false) String districtCode,
                               @ApiParam("图片描述") @RequestParam(value = "description", required = false) String description,
                               @ApiParam(value = "标签，使用英文逗号分隔", example = "风景,旅行") @RequestParam(value = "tags", required = false) String tags,
                               @ApiParam(value = "上传者", example = "zhangsan") @RequestParam(value = "uploader", required = false) String uploader) {
