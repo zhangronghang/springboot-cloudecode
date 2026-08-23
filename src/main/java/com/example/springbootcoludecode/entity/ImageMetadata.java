@@ -12,6 +12,9 @@ public class ImageMetadata {
     private String description;
     private String tags;
     private String uploader;
+    private String provinceCode;
+    private String districtCode;
+    private String createTime;
     private String uploadTime;
     private String fileSize;
     private String fileName;
@@ -27,6 +30,12 @@ public class ImageMetadata {
     public void setTags(String tags) { this.tags = tags; }
     public String getUploader() { return uploader; }
     public void setUploader(String uploader) { this.uploader = uploader; }
+    public String getProvinceCode() { return provinceCode; }
+    public void setProvinceCode(String provinceCode) { this.provinceCode = provinceCode; }
+    public String getDistrictCode() { return districtCode; }
+    public void setDistrictCode(String districtCode) { this.districtCode = districtCode; }
+    public String getCreateTime() { return createTime; }
+    public void setCreateTime(String createTime) { this.createTime = createTime; }
     public String getUploadTime() { return uploadTime; }
     public void setUploadTime(String uploadTime) { this.uploadTime = uploadTime; }
     public String getFileSize() { return fileSize; }

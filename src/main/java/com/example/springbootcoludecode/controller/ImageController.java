@@ -11,29 +11,31 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api/images")
-@Api(tags = "图片管理")
+@RequestMapping("/api/information")
+@Api(tags = "信息管理")
 public class ImageController {
 
     @Autowired
     private ImageService imageService;
 
     @PostMapping("/upload")
-    @ApiOperation(value = "上传图片", notes = "以 multipart/form-data 提交图片文件和备注信息。")
+    @ApiOperation(value = "上传信息图片", notes = "以 multipart/form-data 提交图片文件、备注信息和必填行政区信息。")
     @ApiResponses({
             @io.swagger.annotations.ApiResponse(code = 200, message = "上传成功"),
-            @io.swagger.annotations.ApiResponse(code = 400, message = "图片文件或标题为空")
+            @io.swagger.annotations.ApiResponse(code = 400, message = "图片文件、标题或行政区划代码为空")
     })
     public ApiResponse upload(@ApiParam(value = "图片文件", required = true) @RequestParam("file") MultipartFile file,
                               @ApiParam(value = "图片标题", required = true) @RequestParam("title") String title,
+                              @ApiParam(value = "省级行政区划代码", required = true, example = "110000") @RequestParam("provinceCode") String provinceCode,
+                              @ApiParam(value = "区县级行政区划代码", required = true, example = "110101") @RequestParam("districtCode") String districtCode,
                               @ApiParam("图片描述") @RequestParam(value = "description", required = false) String description,
                               @ApiParam(value = "标签，使用英文逗号分隔", example = "风景,旅行") @RequestParam(value = "tags", required = false) String tags,
                               @ApiParam(value = "上传者", example = "zhangsan") @RequestParam(value = "uploader", required = false) String uploader) {
-        return imageService.upload(file, title, description, tags, uploader);
+        return imageService.upload(file, title, provinceCode, districtCode, description, tags, uploader);
     }
 
     @PostMapping("/list")
-    @ApiOperation(value = "分页查询图片", notes = "支持按标签模糊匹配和上传者精确匹配，按上传时间倒序返回。")
+    @ApiOperation(value = "分页查询信息图片", notes = "支持按标签模糊匹配，以及上传者、省级和区县级行政区划代码精确匹配，按上传时间倒序返回。")
     public ApiResponse list(@RequestBody ImageListRequest request) {
         return imageService.list(request);
     }
