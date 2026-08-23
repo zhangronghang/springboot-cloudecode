@@ -51,7 +51,7 @@ public class ImageServiceImplTest {
     void uploadContract_shouldAcceptAdministrativeCodesAndExposeNewMetadataFields() {
         Method uploadMethod = Arrays.stream(ImageService.class.getMethods())
                 .filter(method -> method.getName().equals("upload"))
-                .filter(method -> method.getParameterCount() == 7)
+                .filter(method -> method.getParameterCount() == 8)
                 .findFirst()
                 .orElse(null);
         Set<String> propertyNames = Arrays.stream(ImageMetadata.class.getMethods())
@@ -61,11 +61,13 @@ public class ImageServiceImplTest {
                 .map(Method::getName)
                 .collect(Collectors.toSet());
 
-        assertNotNull(uploadMethod, "上传服务必须接收 provinceCode 和 districtCode");
+        assertNotNull(uploadMethod, "上传服务必须接收 provinceCode、cityCode 和 districtCode");
         assertTrue(propertyNames.contains("getProvinceCode"));
+        assertTrue(propertyNames.contains("getCityCode"));
         assertTrue(propertyNames.contains("getDistrictCode"));
         assertTrue(propertyNames.contains("getCreateTime"));
         assertTrue(listPropertyNames.contains("getProvinceCode"));
+        assertTrue(listPropertyNames.contains("getCityCode"));
         assertTrue(listPropertyNames.contains("getDistrictCode"));
     }
 
@@ -80,7 +82,7 @@ public class ImageServiceImplTest {
         org.bson.types.ObjectId gridFsId = new org.bson.types.ObjectId();
         when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString())).thenReturn(gridFsId);
 
-        ApiResponse response = imageService.upload(file, "测试标题", "  province-A  ", "  district-B  ", "测试描述", "风景,旅游", "zhangsan");
+        ApiResponse response = imageService.upload(file, "测试标题", "  province-A  ", "  city-A  ", "  district-B  ", "测试描述", "风景,旅游", "zhangsan");
 
         assertEquals(200, response.getCode());
         assertTrue(response.getData() instanceof ImageMetadata);
@@ -90,6 +92,7 @@ public class ImageServiceImplTest {
         assertEquals("风景,旅游", meta.getTags());
         assertEquals("zhangsan", meta.getUploader());
         assertEquals("province-A", meta.getProvinceCode());
+        assertEquals("city-A", meta.getCityCode());
         assertEquals("district-B", meta.getDistrictCode());
         assertEquals("1024", meta.getFileSize());
         assertEquals("test.jpg", meta.getFileName());
@@ -102,19 +105,38 @@ public class ImageServiceImplTest {
     }
 
     @Test
-    void upload_shouldRejectBlankAdministrativeCodes() {
+    void upload_shouldRejectBlankCityAndDistrictCodes() throws Exception {
         MultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
         when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString()))
                 .thenReturn(new org.bson.types.ObjectId());
 
-        ApiResponse missingProvince = imageService.upload(file, "标题", " ", "1101", null, null, null);
-        ApiResponse missingDistrict = imageService.upload(file, "标题", "11", " ", null, null, null);
+        ApiResponse missingCity = imageService.upload(file, "标题", "11", " ", "1101", null, null, null);
+        ApiResponse missingDistrict = imageService.upload(file, "标题", "11", "1101", " ", null, null, null);
+        ApiResponse nullCity = imageService.upload(file, "标题", "11", null, "1101", null, null, null);
+        ApiResponse nullDistrict = imageService.upload(file, "标题", "11", "1101", null, null, null, null);
 
-        assertEquals(400, missingProvince.getCode());
-        assertEquals("省级行政区划代码不能为空", missingProvince.getMessage());
+        assertEquals(400, missingCity.getCode());
+        assertEquals("市级行政区划代码不能为空", missingCity.getMessage());
         assertEquals(400, missingDistrict.getCode());
         assertEquals("区县级行政区划代码不能为空", missingDistrict.getMessage());
+        assertEquals("市级行政区划代码不能为空", nullCity.getMessage());
+        assertEquals("区县级行政区划代码不能为空", nullDistrict.getMessage());
         verifyNoInteractions(gridFsTemplate, mongoTemplate);
+    }
+
+    @Test
+    void upload_shouldStoreEmptyProvinceAndAcceptNonStandardCodes() throws Exception {
+        MultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
+        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString()))
+                .thenReturn(new org.bson.types.ObjectId());
+
+        ApiResponse response = imageService.upload(file, "标题", "   ", " city-X ", " district-Y ", null, null, null);
+
+        assertEquals(200, response.getCode());
+        ImageMetadata metadata = (ImageMetadata) response.getData();
+        assertEquals("", metadata.getProvinceCode());
+        assertEquals("city-X", metadata.getCityCode());
+        assertEquals("district-Y", metadata.getDistrictCode());
     }
 
     @Test
@@ -164,11 +186,12 @@ public class ImageServiceImplTest {
     }
 
     @Test
-    void list_shouldCombineExactAdministrativeCodeFiltersWithExistingFilters() {
+    void list_shouldCombineExactAdministrativeCodeFiltersWithExistingFilters() throws Exception {
         ImageListRequest request = new ImageListRequest();
         request.setTag("风景");
         request.setUploader("zhangsan");
         request.setProvinceCode("province-A");
+        request.setCityCode(" city-A ");
         request.setDistrictCode("district-B");
 
         when(mongoTemplate.count(any(Query.class), eq(ImageMetadata.class))).thenReturn(0L);
@@ -179,9 +202,24 @@ public class ImageServiceImplTest {
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         verify(mongoTemplate).count(queryCaptor.capture(), eq(ImageMetadata.class));
         assertEquals("province-A", queryCaptor.getValue().getQueryObject().getString("provinceCode"));
+        assertEquals("city-A", queryCaptor.getValue().getQueryObject().getString("cityCode"));
         assertEquals("district-B", queryCaptor.getValue().getQueryObject().getString("districtCode"));
         assertEquals("zhangsan", queryCaptor.getValue().getQueryObject().getString("uploader"));
         assertTrue(queryCaptor.getValue().getQueryObject().containsKey("tags"));
+    }
+
+    @Test
+    void list_shouldIgnoreBlankCityCodeFilter() throws Exception {
+        ImageListRequest request = new ImageListRequest();
+        request.setCityCode("   ");
+        when(mongoTemplate.count(any(Query.class), eq(ImageMetadata.class))).thenReturn(0L);
+        when(mongoTemplate.find(any(Query.class), eq(ImageMetadata.class))).thenReturn(Collections.emptyList());
+
+        imageService.list(request);
+
+        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).count(queryCaptor.capture(), eq(ImageMetadata.class));
+        assertFalse(queryCaptor.getValue().getQueryObject().containsKey("cityCode"));
     }
 
     @Test
@@ -201,7 +239,9 @@ public class ImageServiceImplTest {
         assertTrue(response.getData() instanceof Map);
         @SuppressWarnings("unchecked")
         Map<String, Object> data = (Map<String, Object>) response.getData();
-        assertEquals("测试图片", ((ImageMetadata) data.get("metadata")).getTitle());
+        ImageMetadata returnedMetadata = (ImageMetadata) data.get("metadata");
+        assertEquals("测试图片", returnedMetadata.getTitle());
+        assertNull(returnedMetadata.getCityCode());
     }
 
     @Test
@@ -238,13 +278,14 @@ public class ImageServiceImplTest {
     }
 
     @Test
-    void update_shouldUpdateFields() {
+    void update_shouldUpdateFields() throws Exception {
         ImageMetadata existing = new ImageMetadata();
         existing.setId("507f1f77bcf86cd799439011");
         existing.setTitle("旧标题");
         existing.setDescription("旧描述");
         existing.setTags("旧标签");
         existing.setProvinceCode("province-A");
+        existing.setCityCode("city-A");
         existing.setDistrictCode("district-B");
         existing.setCreateTime("20260101120000");
         existing.setUploadTime("20000101120000");
@@ -258,10 +299,27 @@ public class ImageServiceImplTest {
         assertEquals("新描述", updated.getDescription());
         assertEquals("旧标签", updated.getTags());
         assertEquals("province-A", updated.getProvinceCode());
+        assertEquals("city-A", updated.getCityCode());
         assertEquals("district-B", updated.getDistrictCode());
         assertEquals("20260101120000", updated.getCreateTime());
         assertTrue(updated.getUploadTime().matches("\\d{14}"));
         assertNotEquals("20000101120000", updated.getUploadTime());
+        verify(mongoTemplate).save(existing);
+    }
+
+    @Test
+    void update_shouldSupportMetadataWithoutCityCode() throws Exception {
+        ImageMetadata existing = new ImageMetadata();
+        existing.setId("507f1f77bcf86cd799439011");
+        existing.setTitle("旧标题");
+        existing.setCreateTime("20260101120000");
+        existing.setUploadTime("20000101120000");
+        when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(existing);
+
+        ApiResponse response = imageService.update("507f1f77bcf86cd799439011", null, "新标题", null, null, null);
+
+        assertEquals(200, response.getCode());
+        assertNull(((ImageMetadata) response.getData()).getCityCode());
         verify(mongoTemplate).save(existing);
     }
 
@@ -338,4 +396,5 @@ public class ImageServiceImplTest {
         assertEquals("记录不存在", response.getMessage());
         verify(gridFsTemplate, never()).delete(any(Query.class));
     }
+
 }

@@ -22,38 +22,60 @@
 
 ## 元数据字段与时间
 
-- `provinceCode`：省级行政区划代码；新上传时必填，仅校验非空。
+- `provinceCode`：省级行政区划代码；新上传时可选，缺失或空白会保存为 `""`。直辖市、省直辖县等非普通“省—市—区县”结构传 `""` 或不传。
+- `cityCode`：市级行政区划代码；新上传时必填，仅校验非空。
 - `districtCode`：区县级行政区划代码；新上传时必填，仅校验非空。
 - `createTime`：创建时间，格式 `yyyyMMddHHmmss`，创建后不变。
 - `uploadTime`：最近一次上传或更新的时间，格式 `yyyyMMddHHmmss`。
 
-首次上传时 `createTime` 与 `uploadTime` 相同。更新元数据或替换文件后，`uploadTime` 会更新。历史数据的两个行政区字段可能为空字符串。
+行政区代码只做非空和首尾空白处理，不校验位数、数字格式或上下级关系。首次上传时 `createTime` 与 `uploadTime` 相同；更新元数据或替换文件后，`uploadTime` 会更新。历史记录的 `cityCode` 可能缺失或为 `null`，查询详情、更新和删除仍可正常使用。
 
 ## 1. 上传图片
 
 - 地址：`POST /api/information/upload`
 - Content-Type：`multipart/form-data`
-- 必填参数：`file`（图片文件）、`title`（标题）、`provinceCode`（省级行政区划代码）、`districtCode`（区县级行政区划代码）
-- 可选参数：`description`（描述）、`tags`（英文逗号分隔的标签）、`uploader`（上传者）
+- 必填参数：`file`（图片文件）、`title`（标题）、`cityCode`（市级行政区划代码）、`districtCode`（区县级行政区划代码）
+- 可选参数：`provinceCode`（省级行政区划代码）、`description`（描述）、`tags`（英文逗号分隔的标签）、`uploader`（上传者）
+
+普通“省—市—区县”结构示例：
 
 ```bash
 curl -X POST "http://localhost:8081/api/information/upload" \
   -F "file=@D:/images/demo.jpg" \
   -F "title=示例图片" \
   -F "provinceCode=110000" \
+  -F "cityCode=110100" \
   -F "districtCode=110101" \
   -F "description=用于前端联调" \
   -F "tags=风景,旅行" \
   -F "uploader=zhangsan"
 ```
 
-成功时 `data` 为完整图片元数据，其中 `id` 用于后续查询、更新和删除。
+直辖市、省直辖县等非普通结构可省略 `provinceCode`：
+
+```bash
+curl -X POST "http://localhost:8081/api/information/upload" \
+  -F "file=@D:/images/demo.jpg" \
+  -F "title=特殊行政区示例" \
+  -F "cityCode=500100" \
+  -F "districtCode=500101"
+```
+
+成功时 `data` 为完整图片元数据，其中 `id` 用于后续查询、更新和删除。响应中的行政区字段示例：
+
+```json
+{
+  "provinceCode": "110000",
+  "cityCode": "110100",
+  "districtCode": "110101"
+}
+```
 
 ## 2. 分页查询
 
 - 地址：`POST /api/information/list`
 - Content-Type：`application/json`
-- `page` 默认 `1`，`size` 默认 `10`；`tag` 为模糊匹配，`uploader`、`provinceCode`、`districtCode` 为精确匹配；多个条件同时提供时取交集。
+- `page` 默认 `1`，`size` 默认 `10`；`tag` 为模糊匹配，`uploader`、`provinceCode`、`cityCode`、`districtCode` 为精确匹配；多个条件同时提供时取交集。行政区筛选值缺失或仅含空白时忽略该条件。
 
 ```json
 {
@@ -62,6 +84,7 @@ curl -X POST "http://localhost:8081/api/information/upload" \
   "tag": "风景",
   "uploader": "zhangsan",
   "provinceCode": "110000",
+  "cityCode": "110100",
   "districtCode": "110101"
 }
 ```
@@ -86,7 +109,7 @@ curl -X POST "http://localhost:8081/api/information/upload" \
 - 地址：`POST /api/information/update`
 - Content-Type：`multipart/form-data`
 - 必填参数：`id`
-- 可选参数：`file`、`title`、`description`、`tags`、`uploader`。仅更新实际提交的非空字段；`provinceCode` 和 `districtCode` 不属于更新接口参数，无法通过该接口修改。
+- 可选参数：`file`、`title`、`description`、`tags`、`uploader`。仅更新实际提交的非空字段；`provinceCode`、`cityCode` 和 `districtCode` 不属于更新接口参数，无法通过该接口修改，响应仍返回原有值。
 
 ```bash
 curl -X POST "http://localhost:8081/api/information/update" \

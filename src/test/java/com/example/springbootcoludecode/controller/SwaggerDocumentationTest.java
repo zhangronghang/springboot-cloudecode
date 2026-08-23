@@ -9,6 +9,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.context.annotation.Import;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,9 +36,17 @@ class SwaggerDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/information/delete']").exists())
                 .andExpect(jsonPath("$.paths['/api/images/upload']").doesNotExist())
                 .andExpect(jsonPath("$.tags[?(@.name == '信息管理')]").exists())
-                .andExpect(jsonPath("$.paths['/api/information/upload'].post.parameters[?(@.name == 'provinceCode')].required").value(hasItem(true)))
+                .andExpect(jsonPath("$.paths['/api/information/upload'].post.parameters[?(@.name == 'provinceCode')].required").value(hasItem(false)))
                 .andExpect(jsonPath("$.paths['/api/information/upload'].post.parameters[?(@.name == 'provinceCode')].description").value(hasItem("省级行政区划代码")))
+                .andExpect(jsonPath("$.paths['/api/information/upload'].post.parameters[?(@.name == 'cityCode')].required").value(hasItem(true)))
+                .andExpect(jsonPath("$.paths['/api/information/upload'].post.parameters[?(@.name == 'cityCode')].description").value(hasItem("市级行政区划代码")))
                 .andExpect(jsonPath("$.paths['/api/information/upload'].post.parameters[?(@.name == 'districtCode')].required").value(hasItem(true)))
-                .andExpect(jsonPath("$.paths['/api/information/upload'].post.parameters[?(@.name == 'districtCode')].description").value(hasItem("区县级行政区划代码")));
+                .andExpect(jsonPath("$.paths['/api/information/upload'].post.parameters[?(@.name == 'districtCode')].description").value(hasItem("区县级行政区划代码")))
+                .andExpect(jsonPath("$.paths['/api/information/list'].post.description").value(containsString("市级行政区划代码精确匹配")))
+                .andExpect(jsonPath("$.definitions.ImageListRequest.properties.cityCode.description").value("市级行政区划代码，非空时精确匹配"))
+                .andExpect(jsonPath("$.paths['/api/information/update'].post.description").value(containsString("三个行政区划代码不允许修改")))
+                .andExpect(jsonPath("$.paths['/api/information/update'].post.parameters[?(@.name == 'provinceCode')]").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/information/update'].post.parameters[?(@.name == 'cityCode')]").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/information/update'].post.parameters[?(@.name == 'districtCode')]").isEmpty());
     }
 }

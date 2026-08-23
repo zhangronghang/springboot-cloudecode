@@ -35,15 +35,16 @@ public class ImageServiceImpl implements ImageService {
     private GridFsTemplate gridFsTemplate;
 
     @Override
-    public ApiResponse upload(MultipartFile file, String title, String provinceCode, String districtCode, String description, String tags, String uploader) {
+    public ApiResponse upload(MultipartFile file, String title, String provinceCode, String cityCode, String districtCode,
+                              String description, String tags, String uploader) {
         if (file == null || file.isEmpty()) {
             return ApiResponse.error(400, "图片文件不能为空");
         }
         if (title == null || title.trim().isEmpty()) {
             return ApiResponse.error(400, "标题不能为空");
         }
-        if (provinceCode == null || provinceCode.trim().isEmpty()) {
-            return ApiResponse.error(400, "省级行政区划代码不能为空");
+        if (cityCode == null || cityCode.trim().isEmpty()) {
+            return ApiResponse.error(400, "市级行政区划代码不能为空");
         }
         if (districtCode == null || districtCode.trim().isEmpty()) {
             return ApiResponse.error(400, "区县级行政区划代码不能为空");
@@ -60,7 +61,8 @@ public class ImageServiceImpl implements ImageService {
             meta.setDescription(description != null ? description.trim() : "");
             meta.setTags(tags != null ? tags.trim() : "");
             meta.setUploader(uploader != null ? uploader.trim() : "");
-            meta.setProvinceCode(provinceCode.trim());
+            meta.setProvinceCode(provinceCode == null ? "" : provinceCode.trim());
+            meta.setCityCode(cityCode.trim());
             meta.setDistrictCode(districtCode.trim());
             String currentTime = LocalDateTime.now().format(TIME_FORMATTER);
             meta.setCreateTime(currentTime);
@@ -71,7 +73,6 @@ public class ImageServiceImpl implements ImageService {
             meta.setId(new ObjectId().toString());
 
             mongoTemplate.save(meta);
-
             return ApiResponse.success(meta);
         } catch (IOException e) {
             return ApiResponse.error(500, "文件上传失败: " + e.getMessage());
@@ -92,6 +93,9 @@ public class ImageServiceImpl implements ImageService {
         }
         if (request.getProvinceCode() != null && !request.getProvinceCode().trim().isEmpty()) {
             query.addCriteria(Criteria.where("provinceCode").is(request.getProvinceCode().trim()));
+        }
+        if (request.getCityCode() != null && !request.getCityCode().trim().isEmpty()) {
+            query.addCriteria(Criteria.where("cityCode").is(request.getCityCode().trim()));
         }
         if (request.getDistrictCode() != null && !request.getDistrictCode().trim().isEmpty()) {
             query.addCriteria(Criteria.where("districtCode").is(request.getDistrictCode().trim()));
