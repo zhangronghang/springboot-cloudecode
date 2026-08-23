@@ -4,6 +4,8 @@ import com.example.springbootcoludecode.dto.ApiResponse;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @ControllerAdvice
@@ -17,6 +19,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ApiResponse handleIllegalArgument(IllegalArgumentException e) {
+        return ApiResponse.error(400, e.getMessage());
+    }
+
+    @ExceptionHandler({MissingServletRequestParameterException.class, MissingServletRequestPartException.class})
+    public ApiResponse handleMissingRequestValue(Exception e) {
         return ApiResponse.error(400, e.getMessage());
     }
 

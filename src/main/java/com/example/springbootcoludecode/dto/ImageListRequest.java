@@ -13,6 +13,10 @@ public class ImageListRequest {
     private String tag;
     @ApiModelProperty(value = "上传者，精确匹配", example = "zhangsan")
     private String uploader;
+    @ApiModelProperty(value = "省级行政区划代码，精确匹配", example = "110000")
+    private String provinceCode;
+    @ApiModelProperty(value = "区县级行政区划代码，精确匹配", example = "110101")
+    private String districtCode;
 
     public int getPage() { return page; }
     public void setPage(int page) { this.page = page; }
@@ -22,4 +26,8 @@ public class ImageListRequest {
     public void setTag(String tag) { this.tag = tag; }
     public String getUploader() { return uploader; }
     public void setUploader(String uploader) { this.uploader = uploader; }
+    public String getProvinceCode() { return provinceCode; }
+    public void setProvinceCode(String provinceCode) { this.provinceCode = provinceCode; }
+    public String getDistrictCode() { return districtCode; }
+    public void setDistrictCode(String districtCode) { this.districtCode = districtCode; }
 }

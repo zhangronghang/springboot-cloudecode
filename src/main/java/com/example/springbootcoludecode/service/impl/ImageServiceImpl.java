@@ -26,6 +26,8 @@ import java.util.Map;
 @Service
 public class ImageServiceImpl implements ImageService {
 
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
     @Autowired
     private MongoTemplate mongoTemplate;
 
@@ -33,12 +35,18 @@ public class ImageServiceImpl implements ImageService {
     private GridFsTemplate gridFsTemplate;
 
     @Override
-    public ApiResponse upload(MultipartFile file, String title, String description, String tags, String uploader) {
+    public ApiResponse upload(MultipartFile file, String title, String provinceCode, String districtCode, String description, String tags, String uploader) {
         if (file == null || file.isEmpty()) {
             return ApiResponse.error(400, "图片文件不能为空");
         }
         if (title == null || title.trim().isEmpty()) {
             return ApiResponse.error(400, "标题不能为空");
+        }
+        if (provinceCode == null || provinceCode.trim().isEmpty()) {
+            return ApiResponse.error(400, "省级行政区划代码不能为空");
+        }
+        if (districtCode == null || districtCode.trim().isEmpty()) {
+            return ApiResponse.error(400, "区县级行政区划代码不能为空");
         }
         try {
             ObjectId gridFsFileId = gridFsTemplate.store(
@@ -52,7 +60,11 @@ public class ImageServiceImpl implements ImageService {
             meta.setDescription(description != null ? description.trim() : "");
             meta.setTags(tags != null ? tags.trim() : "");
             meta.setUploader(uploader != null ? uploader.trim() : "");
-            meta.setUploadTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            meta.setProvinceCode(provinceCode.trim());
+            meta.setDistrictCode(districtCode.trim());
+            String currentTime = LocalDateTime.now().format(TIME_FORMATTER);
+            meta.setCreateTime(currentTime);
+            meta.setUploadTime(currentTime);
             meta.setFileSize(String.valueOf(file.getSize()));
             meta.setFileName(file.getOriginalFilename());
             meta.setGridFsFileId(gridFsFileId.toString());
@@ -77,6 +89,12 @@ public class ImageServiceImpl implements ImageService {
         }
         if (request.getUploader() != null && !request.getUploader().trim().isEmpty()) {
             query.addCriteria(Criteria.where("uploader").is(request.getUploader().trim()));
+        }
+        if (request.getProvinceCode() != null && !request.getProvinceCode().trim().isEmpty()) {
+            query.addCriteria(Criteria.where("provinceCode").is(request.getProvinceCode().trim()));
+        }
+        if (request.getDistrictCode() != null && !request.getDistrictCode().trim().isEmpty()) {
+            query.addCriteria(Criteria.where("districtCode").is(request.getDistrictCode().trim()));
         }
 
         long total = mongoTemplate.count(query, ImageMetadata.class);
@@ -135,6 +153,7 @@ public class ImageServiceImpl implements ImageService {
             return ApiResponse.error(400, "记录不存在");
         }
 
+        boolean updated = false;
         // 传了文件则替换 GridFS 图片：先存新文件，成功后删除旧文件，避免存新失败导致图片丢失
         if (file != null && !file.isEmpty()) {
             try {
@@ -154,6 +173,7 @@ public class ImageServiceImpl implements ImageService {
                 meta.setGridFsFileId(newFileId.toString());
                 meta.setFileName(file.getOriginalFilename());
                 meta.setFileSize(String.valueOf(file.getSize()));
+                updated = true;
             } catch (IOException e) {
                 return ApiResponse.error(500, "文件上传失败: " + e.getMessage());
             }
@@ -161,15 +181,22 @@ public class ImageServiceImpl implements ImageService {
 
         if (title != null && !title.trim().isEmpty()) {
             meta.setTitle(title.trim());
+            updated = true;
         }
         if (description != null && !description.trim().isEmpty()) {
             meta.setDescription(description.trim());
+            updated = true;
         }
         if (tags != null && !tags.trim().isEmpty()) {
             meta.setTags(tags.trim());
+            updated = true;
         }
         if (uploader != null && !uploader.trim().isEmpty()) {
             meta.setUploader(uploader.trim());
+            updated = true;
+        }
+        if (updated) {
+            meta.setUploadTime(LocalDateTime.now().format(TIME_FORMATTER));
         }
         mongoTemplate.save(meta);
         return ApiResponse.success(meta);
