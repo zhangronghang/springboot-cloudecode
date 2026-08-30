@@ -2,7 +2,8 @@ package com.example.springbootcoludecode.entity;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.Field;
+import java.util.ArrayList;
+import java.util.List;
 
 @Document(collection = "image_metadata")
 public class ImageMetadata {
@@ -17,9 +18,7 @@ public class ImageMetadata {
     private String districtCode;
     private String createTime;
     private String uploadTime;
-    private String fileSize;
-    private String fileName;
-    private String gridFsFileId;
+    private List<ImageItem> images = new ArrayList<>();
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -41,10 +40,6 @@ public class ImageMetadata {
     public void setCreateTime(String createTime) { this.createTime = createTime; }
     public String getUploadTime() { return uploadTime; }
     public void setUploadTime(String uploadTime) { this.uploadTime = uploadTime; }
-    public String getFileSize() { return fileSize; }
-    public void setFileSize(String fileSize) { this.fileSize = fileSize; }
-    public String getFileName() { return fileName; }
-    public void setFileName(String fileName) { this.fileName = fileName; }
-    public String getGridFsFileId() { return gridFsFileId; }
-    public void setGridFsFileId(String gridFsFileId) { this.gridFsFileId = gridFsFileId; }
+    public List<ImageItem> getImages() { return images; }
+    public void setImages(List<ImageItem> images) { this.images = images == null ? new ArrayList<>() : images; }
 }

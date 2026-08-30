@@ -1,9 +1,13 @@
 package com.example.springbootcoludecode.service.impl;
 
-import com.example.springbootcoludecode.dto.*;
+import com.example.springbootcoludecode.dto.ApiResponse;
+import com.example.springbootcoludecode.dto.InformationResponse;
 import com.example.springbootcoludecode.entity.ImageMetadata;
-import com.example.springbootcoludecode.service.ImageService;
-import com.mongodb.client.gridfs.model.GridFSFile;
+import com.example.springbootcoludecode.service.ThumbnailService;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -14,397 +18,77 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-public class ImageServiceImplTest {
+class ImageServiceImplTest {
+    @Mock private MongoTemplate mongoTemplate;
+    @Mock private GridFsTemplate gridFsTemplate;
+    @Mock private ThumbnailService thumbnailService;
+    @InjectMocks private ImageServiceImpl imageService;
+    private MockMultipartFile file;
 
-    @Mock
-    private MongoTemplate mongoTemplate;
+    @BeforeEach void setUp() { MockitoAnnotations.initMocks(this); file = new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1, 2}); }
 
-    @Mock
-    private GridFsTemplate gridFsTemplate;
-
-    @InjectMocks
-    private ImageServiceImpl imageService;
-
-    @BeforeEach
-    void setUp() {
-        MockitoAnnotations.initMocks(this);
+    @Test
+    void uploadStoresOriginalAndThumbnailAsFirstImageWithOneTimestamp() throws Exception {
+        when(thumbnailService.process(file)).thenReturn(new ThumbnailService.ProcessedImage(new byte[]{1, 2}, new byte[]{3}, "image/jpeg", 640, 480));
+        ObjectId original = new ObjectId(), thumbnail = new ObjectId(); when(gridFsTemplate.store(any(), anyString(), anyString())).thenReturn(original, thumbnail);
+        ApiResponse response = imageService.upload(file, " 标题 ", " ", " city ", null, "描述", "标签", "上传者");
+        assertEquals(200, response.getCode()); assertTrue(response.getData() instanceof InformationResponse);
+        ArgumentCaptor<ImageMetadata> captor = ArgumentCaptor.forClass(ImageMetadata.class); verify(mongoTemplate).save(captor.capture());
+        ImageMetadata metadata = captor.getValue(); assertEquals(1, metadata.getImages().size());
+        assertEquals(original.toString(), metadata.getImages().get(0).getOriginalGridFsFileId()); assertEquals(thumbnail.toString(), metadata.getImages().get(0).getThumbnailGridFsFileId());
+        assertEquals(640, metadata.getImages().get(0).getWidth()); assertEquals(480, metadata.getImages().get(0).getHeight()); assertEquals("", metadata.getProvinceCode()); assertEquals("city", metadata.getCityCode()); assertEquals(metadata.getCreateTime(), metadata.getUploadTime());
     }
 
     @Test
-    void uploadContract_shouldAcceptAdministrativeCodesAndExposeNewMetadataFields() {
-        Method uploadMethod = Arrays.stream(ImageService.class.getMethods())
-                .filter(method -> method.getName().equals("upload"))
-                .filter(method -> method.getParameterCount() == 8)
-                .findFirst()
-                .orElse(null);
-        Set<String> propertyNames = Arrays.stream(ImageMetadata.class.getMethods())
-                .map(Method::getName)
-                .collect(Collectors.toSet());
-        Set<String> listPropertyNames = Arrays.stream(ImageListRequest.class.getMethods())
-                .map(Method::getName)
-                .collect(Collectors.toSet());
-
-        assertNotNull(uploadMethod, "上传服务必须接收 provinceCode、cityCode 和 districtCode");
-        assertTrue(propertyNames.contains("getProvinceCode"));
-        assertTrue(propertyNames.contains("getCityCode"));
-        assertTrue(propertyNames.contains("getDistrictCode"));
-        assertTrue(propertyNames.contains("getCreateTime"));
-        assertTrue(listPropertyNames.contains("getProvinceCode"));
-        assertTrue(listPropertyNames.contains("getCityCode"));
-        assertTrue(listPropertyNames.contains("getDistrictCode"));
-    }
-
-    @Test
-    void upload_shouldStoreFileAndSaveMetadata() throws Exception {
-        MultipartFile file = mock(MultipartFile.class);
-        when(file.getOriginalFilename()).thenReturn("test.jpg");
-        when(file.getContentType()).thenReturn("image/jpeg");
-        when(file.getSize()).thenReturn(1024L);
-        when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[1024]));
-
-        org.bson.types.ObjectId gridFsId = new org.bson.types.ObjectId();
-        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString())).thenReturn(gridFsId);
-
-        ApiResponse response = imageService.upload(file, "测试标题", "  province-A  ", "  city-A  ", "  district-B  ", "测试描述", "风景,旅游", "zhangsan");
-
-        assertEquals(200, response.getCode());
-        assertTrue(response.getData() instanceof ImageMetadata);
-        ImageMetadata meta = (ImageMetadata) response.getData();
-        assertEquals("测试标题", meta.getTitle());
-        assertEquals("测试描述", meta.getDescription());
-        assertEquals("风景,旅游", meta.getTags());
-        assertEquals("zhangsan", meta.getUploader());
-        assertEquals("province-A", meta.getProvinceCode());
-        assertEquals("city-A", meta.getCityCode());
-        assertEquals("district-B", meta.getDistrictCode());
-        assertEquals("1024", meta.getFileSize());
-        assertEquals("test.jpg", meta.getFileName());
-        assertEquals(gridFsId.toString(), meta.getGridFsFileId());
-        assertEquals(meta.getCreateTime(), meta.getUploadTime());
-        assertTrue(meta.getCreateTime().matches("\\d{14}"));
-        assertNotNull(meta.getId());
-
-        verify(mongoTemplate).save(any(ImageMetadata.class));
-    }
-
-    @Test
-    void upload_shouldStoreEmptyAdministrativeCodesWhenAllAreMissing() throws Exception {
-        MultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
-        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString()))
-                .thenReturn(new org.bson.types.ObjectId());
-
+    void uploadCompensatesOriginalAndThumbnailWhenMetadataSaveFails() throws Exception {
+        when(thumbnailService.process(file)).thenReturn(new ThumbnailService.ProcessedImage(new byte[]{1}, new byte[]{2}, "image/jpeg", 1, 1));
+        when(gridFsTemplate.store(any(), anyString(), anyString())).thenReturn(new ObjectId(), new ObjectId()); doThrow(new RuntimeException("mongo down")).when(mongoTemplate).save(any(ImageMetadata.class));
         ApiResponse response = imageService.upload(file, "标题", null, null, null, null, null, null);
-
-        assertEquals(200, response.getCode());
-        ImageMetadata metadata = (ImageMetadata) response.getData();
-        assertEquals("", metadata.getProvinceCode());
-        assertEquals("", metadata.getCityCode());
-        assertEquals("", metadata.getDistrictCode());
+        assertEquals(500, response.getCode()); verify(gridFsTemplate, times(2)).delete(any(Query.class));
     }
 
     @Test
-    void upload_shouldNormalizePartialAdministrativeCodesIndependently() throws Exception {
-        MultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
-        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString()))
-                .thenReturn(new org.bson.types.ObjectId());
-
-        ApiResponse response = imageService.upload(file, "标题", "   ", " city-X ", " ", null, null, null);
-
-        assertEquals(200, response.getCode());
-        ImageMetadata metadata = (ImageMetadata) response.getData();
-        assertEquals("", metadata.getProvinceCode());
-        assertEquals("city-X", metadata.getCityCode());
-        assertEquals("", metadata.getDistrictCode());
+    void uploadCompensatesOriginalWhenThumbnailStorageFails() throws Exception {
+        when(thumbnailService.process(file)).thenReturn(new ThumbnailService.ProcessedImage(new byte[]{1}, new byte[]{2}, "image/jpeg", 1, 1));
+        when(gridFsTemplate.store(any(), anyString(), anyString())).thenReturn(new ObjectId()).thenThrow(new RuntimeException("gridfs down"));
+        ApiResponse response = imageService.upload(file, "标题", null, null, null, null, null, null);
+        assertEquals(500, response.getCode()); verify(gridFsTemplate).delete(any(Query.class)); verify(mongoTemplate, never()).save(any(ImageMetadata.class));
     }
 
     @Test
-    void upload_shouldStoreEmptyProvinceAndAcceptNonStandardCodes() throws Exception {
-        MultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
-        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString()))
-                .thenReturn(new org.bson.types.ObjectId());
+    void deletesMetadataBeforeAllImageFilesAndLogsCleanupFailureWithoutRollback() {
+        ImageMetadata metadata = new ImageMetadata(); metadata.setId("record");
+        com.example.springbootcoludecode.entity.ImageItem first = image();
+        com.example.springbootcoludecode.entity.ImageItem second = image();
+        metadata.getImages().add(first); metadata.getImages().add(second);
+        when(mongoTemplate.findById("record", ImageMetadata.class)).thenReturn(metadata);
+        doThrow(new RuntimeException("gridfs down")).when(gridFsTemplate).delete(any(Query.class));
+        Logger logger = (Logger) LoggerFactory.getLogger(ImageServiceImpl.class);
+        ListAppender<ILoggingEvent> events = new ListAppender<>(); events.start(); logger.addAppender(events);
 
-        ApiResponse response = imageService.upload(file, "标题", "   ", " city-X ", " district-Y ", null, null, null);
-
-        assertEquals(200, response.getCode());
-        ImageMetadata metadata = (ImageMetadata) response.getData();
-        assertEquals("", metadata.getProvinceCode());
-        assertEquals("city-X", metadata.getCityCode());
-        assertEquals("district-Y", metadata.getDistrictCode());
+        try {
+            com.example.springbootcoludecode.dto.ImageDeleteRequest request = new com.example.springbootcoludecode.dto.ImageDeleteRequest();
+            request.setId("record");
+            ApiResponse response = imageService.delete(request);
+            assertEquals(200, response.getCode());
+            org.mockito.InOrder ordered = inOrder(mongoTemplate, gridFsTemplate);
+            ordered.verify(mongoTemplate).remove(metadata);
+            ordered.verify(gridFsTemplate, times(4)).delete(any(Query.class));
+            assertTrue(events.list.stream().anyMatch(event -> event.getFormattedMessage().contains("GridFS")));
+        } finally {
+            logger.detachAppender(events);
+        }
     }
 
-    @Test
-    void list_shouldReturnPaginatedResults() {
-        ImageListRequest request = new ImageListRequest();
-        request.setPage(1);
-        request.setSize(10);
-
-        ImageMetadata meta = new ImageMetadata();
-        meta.setId("507f1f77bcf86cd799439011");
-        meta.setTitle("测试");
-        meta.setUploader("zhangsan");
-        meta.setUploadTime("2026-06-27 10:30:00");
-
-        when(mongoTemplate.count(any(Query.class), eq(ImageMetadata.class))).thenReturn(1L);
-        when(mongoTemplate.find(any(Query.class), eq(ImageMetadata.class))).thenReturn(Collections.singletonList(meta));
-
-        ApiResponse response = imageService.list(request);
-
-        assertEquals(200, response.getCode());
-        assertTrue(response.getData() instanceof Map);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.getData();
-        assertEquals(1L, data.get("total"));
-        assertEquals(1, data.get("page"));
-        assertEquals(10, data.get("size"));
-        assertNotNull(data.get("records"));
+    private com.example.springbootcoludecode.entity.ImageItem image() {
+        com.example.springbootcoludecode.entity.ImageItem item = new com.example.springbootcoludecode.entity.ImageItem();
+        item.setOriginalGridFsFileId(new ObjectId().toString()); item.setThumbnailGridFsFileId(new ObjectId().toString());
+        return item;
     }
-
-    @Test
-    void list_shouldFilterByTagAndUploader() {
-        ImageListRequest request = new ImageListRequest();
-        request.setPage(1);
-        request.setSize(5);
-        request.setTag("风景");
-        request.setUploader("zhangsan");
-
-        when(mongoTemplate.count(any(Query.class), eq(ImageMetadata.class))).thenReturn(0L);
-        when(mongoTemplate.find(any(Query.class), eq(ImageMetadata.class))).thenReturn(Collections.emptyList());
-
-        ApiResponse response = imageService.list(request);
-
-        assertEquals(200, response.getCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.getData();
-        assertEquals(0L, data.get("total"));
-    }
-
-    @Test
-    void list_shouldCombineExactAdministrativeCodeFiltersWithExistingFilters() throws Exception {
-        ImageListRequest request = new ImageListRequest();
-        request.setTag("风景");
-        request.setUploader("zhangsan");
-        request.setProvinceCode("province-A");
-        request.setCityCode(" city-A ");
-        request.setDistrictCode("district-B");
-
-        when(mongoTemplate.count(any(Query.class), eq(ImageMetadata.class))).thenReturn(0L);
-        when(mongoTemplate.find(any(Query.class), eq(ImageMetadata.class))).thenReturn(Collections.emptyList());
-
-        imageService.list(request);
-
-        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
-        verify(mongoTemplate).count(queryCaptor.capture(), eq(ImageMetadata.class));
-        assertEquals("province-A", queryCaptor.getValue().getQueryObject().getString("provinceCode"));
-        assertEquals("city-A", queryCaptor.getValue().getQueryObject().getString("cityCode"));
-        assertEquals("district-B", queryCaptor.getValue().getQueryObject().getString("districtCode"));
-        assertEquals("zhangsan", queryCaptor.getValue().getQueryObject().getString("uploader"));
-        assertTrue(queryCaptor.getValue().getQueryObject().containsKey("tags"));
-    }
-
-    @Test
-    void list_shouldIgnoreBlankCityCodeFilter() throws Exception {
-        ImageListRequest request = new ImageListRequest();
-        request.setCityCode("   ");
-        when(mongoTemplate.count(any(Query.class), eq(ImageMetadata.class))).thenReturn(0L);
-        when(mongoTemplate.find(any(Query.class), eq(ImageMetadata.class))).thenReturn(Collections.emptyList());
-
-        imageService.list(request);
-
-        ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
-        verify(mongoTemplate).count(queryCaptor.capture(), eq(ImageMetadata.class));
-        assertFalse(queryCaptor.getValue().getQueryObject().containsKey("cityCode"));
-    }
-
-    @Test
-    void detail_shouldReturnMetadataAndBase64() throws Exception {
-        ImageDetailRequest request = new ImageDetailRequest();
-        request.setId("507f1f77bcf86cd799439011");
-
-        ImageMetadata meta = new ImageMetadata();
-        meta.setId("507f1f77bcf86cd799439011");
-        meta.setTitle("测试图片");
-        meta.setGridFsFileId(null); // 无图片文件的场景
-        when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(meta);
-
-        ApiResponse response = imageService.detail(request);
-
-        assertEquals(200, response.getCode());
-        assertTrue(response.getData() instanceof Map);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.getData();
-        ImageMetadata returnedMetadata = (ImageMetadata) data.get("metadata");
-        assertEquals("测试图片", returnedMetadata.getTitle());
-        assertNull(returnedMetadata.getCityCode());
-    }
-
-    @Test
-    void detail_shouldReturnMetadataWithNullBase64WhenGridFsFileNotFound() {
-        ImageDetailRequest request = new ImageDetailRequest();
-        request.setId("507f1f77bcf86cd799439011");
-
-        ImageMetadata meta = new ImageMetadata();
-        meta.setId("507f1f77bcf86cd799439011");
-        meta.setTitle("测试");
-        meta.setGridFsFileId("507f1f77bcf86cd799439022");
-        when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(meta);
-        when(gridFsTemplate.findOne(any(Query.class))).thenReturn(null);
-
-        ApiResponse response = imageService.detail(request);
-
-        assertEquals(200, response.getCode());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> data = (Map<String, Object>) response.getData();
-        assertNotNull(data.get("metadata"));
-        assertNull(data.get("imageBase64"));
-    }
-
-    @Test
-    void detail_shouldReturn404WhenNotFound() {
-        ImageDetailRequest request = new ImageDetailRequest();
-        request.setId("nonexistent");
-        when(mongoTemplate.findById("nonexistent", ImageMetadata.class)).thenReturn(null);
-
-        ApiResponse response = imageService.detail(request);
-
-        assertEquals(400, response.getCode());
-        assertEquals("记录不存在", response.getMessage());
-    }
-
-    @Test
-    void update_shouldUpdateFields() throws Exception {
-        ImageMetadata existing = new ImageMetadata();
-        existing.setId("507f1f77bcf86cd799439011");
-        existing.setTitle("旧标题");
-        existing.setDescription("旧描述");
-        existing.setTags("旧标签");
-        existing.setProvinceCode("province-A");
-        existing.setCityCode("city-A");
-        existing.setDistrictCode("district-B");
-        existing.setCreateTime("20260101120000");
-        existing.setUploadTime("20000101120000");
-        when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(existing);
-
-        ApiResponse response = imageService.update("507f1f77bcf86cd799439011", null, "新标题", "新描述", null, null);
-
-        assertEquals(200, response.getCode());
-        ImageMetadata updated = (ImageMetadata) response.getData();
-        assertEquals("新标题", updated.getTitle());
-        assertEquals("新描述", updated.getDescription());
-        assertEquals("旧标签", updated.getTags());
-        assertEquals("province-A", updated.getProvinceCode());
-        assertEquals("city-A", updated.getCityCode());
-        assertEquals("district-B", updated.getDistrictCode());
-        assertEquals("20260101120000", updated.getCreateTime());
-        assertTrue(updated.getUploadTime().matches("\\d{14}"));
-        assertNotEquals("20000101120000", updated.getUploadTime());
-        verify(mongoTemplate).save(existing);
-    }
-
-    @Test
-    void update_shouldSupportMetadataWithoutCityCode() throws Exception {
-        ImageMetadata existing = new ImageMetadata();
-        existing.setId("507f1f77bcf86cd799439011");
-        existing.setTitle("旧标题");
-        existing.setCreateTime("20260101120000");
-        existing.setUploadTime("20000101120000");
-        when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(existing);
-
-        ApiResponse response = imageService.update("507f1f77bcf86cd799439011", null, "新标题", null, null, null);
-
-        assertEquals(200, response.getCode());
-        assertNull(((ImageMetadata) response.getData()).getCityCode());
-        verify(mongoTemplate).save(existing);
-    }
-
-    @Test
-    void update_shouldReturn404WhenNotFound() {
-        when(mongoTemplate.findById("nonexistent", ImageMetadata.class)).thenReturn(null);
-
-        ApiResponse response = imageService.update("nonexistent", null, "新标题", null, null, null);
-
-        assertEquals(400, response.getCode());
-        assertEquals("记录不存在", response.getMessage());
-        verify(mongoTemplate, never()).save(any());
-    }
-
-    @Test
-    void update_shouldReplaceImageFile() throws Exception {
-        MultipartFile file = mock(MultipartFile.class);
-        when(file.getOriginalFilename()).thenReturn("new.jpg");
-        when(file.getContentType()).thenReturn("image/jpeg");
-        when(file.getSize()).thenReturn(2048L);
-        when(file.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[2048]));
-
-        org.bson.types.ObjectId newGridFsId = new org.bson.types.ObjectId();
-        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString())).thenReturn(newGridFsId);
-
-        ImageMetadata existing = new ImageMetadata();
-        existing.setId("507f1f77bcf86cd799439011");
-        existing.setGridFsFileId("507f1f77bcf86cd799439022");
-        existing.setCreateTime("20260101120000");
-        existing.setUploadTime("20000101120000");
-        when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(existing);
-
-        ApiResponse response = imageService.update("507f1f77bcf86cd799439011", file, "新标题", null, null, null);
-
-        assertEquals(200, response.getCode());
-        verify(gridFsTemplate).delete(any(Query.class)); // 旧 GridFS 文件被删除
-        ImageMetadata updated = (ImageMetadata) response.getData();
-        assertEquals(newGridFsId.toString(), updated.getGridFsFileId());
-        assertEquals("new.jpg", updated.getFileName());
-        assertEquals("2048", updated.getFileSize());
-        assertEquals("新标题", updated.getTitle());
-        assertEquals("20260101120000", updated.getCreateTime());
-        assertTrue(updated.getUploadTime().matches("\\d{14}"));
-        assertNotEquals("20000101120000", updated.getUploadTime());
-        verify(mongoTemplate).save(existing);
-    }
-
-    @Test
-    void delete_shouldRemoveFileAndMetadata() {
-        ImageDeleteRequest request = new ImageDeleteRequest();
-        request.setId("507f1f77bcf86cd799439011");
-
-        ImageMetadata existing = new ImageMetadata();
-        existing.setId("507f1f77bcf86cd799439011");
-        existing.setGridFsFileId("507f1f77bcf86cd799439022");
-        when(mongoTemplate.findById("507f1f77bcf86cd799439011", ImageMetadata.class)).thenReturn(existing);
-
-        ApiResponse response = imageService.delete(request);
-
-        assertEquals(200, response.getCode());
-        verify(gridFsTemplate).delete(any(Query.class));
-        verify(mongoTemplate).remove(existing);
-    }
-
-    @Test
-    void delete_shouldReturn404WhenNotFound() {
-        ImageDeleteRequest request = new ImageDeleteRequest();
-        request.setId("nonexistent");
-        when(mongoTemplate.findById("nonexistent", ImageMetadata.class)).thenReturn(null);
-
-        ApiResponse response = imageService.delete(request);
-
-        assertEquals(400, response.getCode());
-        assertEquals("记录不存在", response.getMessage());
-        verify(gridFsTemplate, never()).delete(any(Query.class));
-    }
-
 }

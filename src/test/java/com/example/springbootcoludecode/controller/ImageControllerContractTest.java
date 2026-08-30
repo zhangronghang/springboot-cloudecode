@@ -1,7 +1,9 @@
 package com.example.springbootcoludecode.controller;
 
 import com.example.springbootcoludecode.dto.ApiResponse;
+import com.example.springbootcoludecode.dto.ImageResource;
 import com.example.springbootcoludecode.service.ImageService;
+import com.example.springbootcoludecode.service.InformationImageService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -10,13 +12,17 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(ImageController.class)
+@WebMvcTest
 class ImageControllerContractTest {
 
     @Autowired
@@ -24,6 +30,9 @@ class ImageControllerContractTest {
 
     @MockBean
     private ImageService imageService;
+
+    @MockBean
+    private InformationImageService informationImageService;
 
     @Test
     void exposesAllInformationManagementEndpointsAndRemovesLegacyImageEndpoints() throws Exception {
@@ -128,5 +137,70 @@ class ImageControllerContractTest {
                         .param("districtCode", "1101"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void rejectsMultipleFilesWhenCreatingInformation() throws Exception {
+        MockMultipartFile first = new MockMultipartFile("file", "first.jpg", "image/jpeg", new byte[]{1});
+        MockMultipartFile second = new MockMultipartFile("file", "second.jpg", "image/jpeg", new byte[]{2});
+
+        mockMvc.perform(multipart("/api/information/upload")
+                        .file(first)
+                        .file(second)
+                        .param("title", "测试图片"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void exposesDedicatedFootprintImageManagementAndResourceEndpoints() throws Exception {
+        when(informationImageService.addImage(anyString(), any())).thenReturn(ApiResponse.success(null));
+        when(informationImageService.deleteImages(any())).thenReturn(ApiResponse.success(null));
+        when(informationImageService.listImages(any())).thenReturn(ApiResponse.success(null));
+        ImageResource resource = new ImageResource(new byte[]{1}, "image/jpeg");
+        when(informationImageService.readThumbnail(anyString(), anyString())).thenReturn(resource);
+        when(informationImageService.readOriginal(anyString(), anyString())).thenReturn(resource);
+        MockMultipartFile file = new MockMultipartFile("file", "test.jpg", "image/jpeg", new byte[]{1});
+
+        mockMvc.perform(multipart("/api/information/image/add")
+                        .file(file)
+                        .param("informationId", "record-1"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/information/image/delete")
+                        .contentType("application/json")
+                        .content("{\"informationId\":\"record-1\",\"imageIds\":[\"image-1\"]}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/information/image/list")
+                        .contentType("application/json")
+                        .content("{\"informationId\":\"record-1\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/information/record-1/images/image-1/thumbnail"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/information/record-1/images/image-1/original"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void servesBinaryImagesWithDedicatedHttpErrorsAndPermanentCacheHeaders() throws Exception {
+        when(informationImageService.readOriginal("record-1", "image-1"))
+                .thenReturn(new ImageResource(new byte[]{7, 8}, "image/png"));
+        when(informationImageService.readThumbnail("invalid", "image-1"))
+                .thenThrow(new IllegalArgumentException("图片地址参数错误"));
+        when(informationImageService.readOriginal("broken", "image-1"))
+                .thenThrow(new IllegalStateException("gridfs unavailable"));
+
+        mockMvc.perform(get("/api/information/record-1/images/image-1/original"))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(new byte[]{7, 8}))
+                .andExpect(content().contentType("image/png"))
+                .andExpect(header().string("Content-Disposition", "inline"))
+                .andExpect(header().string("Cache-Control", "public, max-age=31536000, immutable"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+        mockMvc.perform(get("/api/information/invalid/images/image-1/thumbnail"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(""));
+        mockMvc.perform(get("/api/information/broken/images/image-1/original"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().string(""));
     }
 }

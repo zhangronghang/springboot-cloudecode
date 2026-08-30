@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
 @ControllerAdvice
 @ResponseBody
@@ -25,6 +26,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({MissingServletRequestParameterException.class, MissingServletRequestPartException.class})
     public ApiResponse handleMissingRequestValue(Exception e) {
         return ApiResponse.error(400, e.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ApiResponse handleValidation(MethodArgumentNotValidException e) {
+        return ApiResponse.error(400, e.getBindingResult().getAllErrors().get(0).getDefaultMessage());
     }
 
     @ExceptionHandler(Exception.class)

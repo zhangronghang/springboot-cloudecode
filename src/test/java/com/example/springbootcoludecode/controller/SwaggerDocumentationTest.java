@@ -2,6 +2,7 @@ package com.example.springbootcoludecode.controller;
 
 import com.example.springbootcoludecode.config.SwaggerConfig;
 import com.example.springbootcoludecode.service.ImageService;
+import com.example.springbootcoludecode.service.InformationImageService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -15,7 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(ImageController.class)
+@WebMvcTest
 @Import(SwaggerConfig.class)
 class SwaggerDocumentationTest {
 
@@ -24,6 +25,9 @@ class SwaggerDocumentationTest {
 
     @MockBean
     private ImageService imageService;
+
+    @MockBean
+    private InformationImageService informationImageService;
 
     @Test
     void exposesImageApiDefinitionForFrontendIntegration() throws Exception {
@@ -50,5 +54,23 @@ class SwaggerDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/information/update'].post.parameters[?(@.name == 'provinceCode')]").isEmpty())
                 .andExpect(jsonPath("$.paths['/api/information/update'].post.parameters[?(@.name == 'cityCode')]").isEmpty())
                 .andExpect(jsonPath("$.paths['/api/information/update'].post.parameters[?(@.name == 'districtCode')]").isEmpty());
+    }
+
+    @Test
+    void documentsFootprintImageGalleryContracts() throws Exception {
+        mockMvc.perform(get("/v2/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/information/image/add']").exists())
+                .andExpect(jsonPath("$.paths['/api/information/image/delete']").exists())
+                .andExpect(jsonPath("$.paths['/api/information/image/list']").exists())
+                .andExpect(jsonPath("$.paths['/api/information/{informationId}/images/{imageId}/thumbnail']").exists())
+                .andExpect(jsonPath("$.paths['/api/information/{informationId}/images/{imageId}/original']").exists())
+                .andExpect(jsonPath("$.paths['/api/information/upload'].post.description").value(containsString("只能上传一张")))
+                .andExpect(jsonPath("$.paths['/api/information/update'].post.parameters[?(@.name == 'file')]").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/information/image/add'].post.description").value(containsString("每次只能新增一张")))
+                .andExpect(jsonPath("$.paths['/api/information/image/delete'].post.description").value(containsString("一张或多张")))
+                .andExpect(jsonPath("$.paths['/api/information/image/list'].post.description").value(containsString("分页")))
+                .andExpect(jsonPath("$.paths['/api/information/{informationId}/images/{imageId}/thumbnail'].get.produces", hasItem("image/jpeg")))
+                .andExpect(jsonPath("$.paths['/api/information/{informationId}/images/{imageId}/original'].get.description").value(containsString("原图")));
     }
 }

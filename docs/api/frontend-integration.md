@@ -1,143 +1,89 @@
-# 信息图片管理接口联调文档
+# 足迹图片接口联调文档
 
-## 文档入口
+## 约定与限制
 
-- Swagger UI：`http://localhost:8081/swagger-ui/index.html`
-- OpenAPI JSON：`http://localhost:8081/v2/api-docs`
-- 服务地址：`http://localhost:8081`
+- 服务地址：`http://localhost:8081`；Swagger：`/swagger-ui/index.html`；OpenAPI：`/v2/api-docs`。
+- 业务 POST 响应统一为 `{ "code": 200, "message": "success", "data": {} }`。二进制图片 GET 不使用该包装。
+- 仅支持实际可解码、声明类型一致的 JPEG、PNG。单文件上限 50MB，请求总上限 55MB；不限制宽高、像素或单足迹累计容量；每个足迹最多 50 张图片。
+- 旧 `/api/images/*` 已废弃，不得调用。图片 URL 为公开、永久、相对地址。
 
-所有接口均使用 `POST`，响应格式一致：
+## 创建足迹
 
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {}
-}
-```
-
-`code` 为 `200` 表示成功，`400` 表示参数或业务错误，`500` 表示服务端异常。
-
-> 旧的 `/api/images/*` 路径已删除，请全部切换为 `/api/information/*`。
-
-## 元数据字段与时间
-
-- `provinceCode`：省级行政区划代码；新上传时可选。
-- `cityCode`：市级行政区划代码；新上传时可选。
-- `districtCode`：区县级行政区划代码；新上传时可选。
-- `createTime`：创建时间，格式 `yyyyMMddHHmmss`，创建后不变。
-- `uploadTime`：最近一次上传或更新的时间，格式 `yyyyMMddHHmmss`。
-
-三个行政区代码独立处理：缺失、空字符串或仅包含空白时保存为 `""`，非空值去除首尾空白后保存；可以任意组合提供，不校验字符组成、长度、数字格式或上下级关系。直辖市、省直辖县等非普通“省—市—区县”结构可以只传实际拥有的字段。首次上传时 `createTime` 与 `uploadTime` 相同；更新元数据或替换文件后，`uploadTime` 会更新。历史记录的任一行政区字段可能缺失或为 `null`，查询详情、更新和删除仍可正常使用。
-
-## 1. 上传图片
-
-- 地址：`POST /api/information/upload`
-- Content-Type：`multipart/form-data`
-- 必填参数：`file`（图片文件）、`title`（标题）
-- 可选参数：`provinceCode`（省级行政区划代码）、`cityCode`（市级行政区划代码）、`districtCode`（区县级行政区划代码）、`description`（描述）、`tags`（英文逗号分隔的标签）、`uploader`（上传者）
-
-普通“省—市—区县”结构示例：
+`POST /api/information/upload`，`multipart/form-data`。必须包含 `title` 和**恰好一个** `file`；可选字段为 `provinceCode`、`cityCode`、`districtCode`、`description`、`tags`、`uploader`。三个行政区字段独立去空白；未给、空白均保存为 `""`。
 
 ```bash
-curl -X POST "http://localhost:8081/api/information/upload" \
-  -F "file=@D:/images/demo.jpg" \
-  -F "title=示例图片" \
-  -F "provinceCode=110000" \
-  -F "cityCode=110100" \
-  -F "districtCode=110101" \
-  -F "description=用于前端联调" \
-  -F "tags=风景,旅行" \
-  -F "uploader=zhangsan"
+curl -X POST http://localhost:8081/api/information/upload \
+  -F "file=@D:/images/footprint.jpg" -F "title=西湖" \
+  -F "tags=风景,旅行" -F "uploader=zhangsan"
 ```
 
-三个行政区字段全部省略：
+成功时 `data` 为公开足迹记录，包含 `id`、`imageCount: 1` 及首图 `coverImage`。`coverImage.thumbnailUrl` 用于展示，`originalUrl` 用于点击查看原图。
+
+## 查询足迹
+
+- `POST /api/information/list`：接受 `page`、`size`、`tag`、`uploader`、`provinceCode`、`cityCode`、`districtCode`。返回的每条 record 仅包含 `imageCount` 与第一张 `coverImage`，不读取或返回图片 Base64。
+- `POST /api/information/detail`：请求 `{ "id": "<informationId>" }`，仅返回足迹公开元数据与 `imageCount`；图片列表应改用下一节接口。
+- `POST /api/information/update`：`multipart/form-data`，必填 `id`，可选 `title`、`description`、`tags`、`uploader`。不支持 file、行政区字段或图片替换；图片集合保持不变。
+- `POST /api/information/delete`：请求 `{ "id": "<informationId>" }`，删除足迹并尝试清理其所有图片文件。
+
+## 图片管理
+
+### 新增一张
+
+`POST /api/information/image/add`，`multipart/form-data`，包含 `informationId` 和**恰好一个** JPEG/PNG `file`。每次只能增加一张；达到 50 张会返回 `code=400`。
 
 ```bash
-curl -X POST "http://localhost:8081/api/information/upload" \
-  -F "file=@D:/images/demo.jpg" \
-  -F "title=行政区暂缺示例"
+curl -X POST http://localhost:8081/api/information/image/add \
+  -F "informationId=<informationId>" -F "file=@D:/images/second.png"
 ```
 
-仅提供部分行政区字段（字段之间没有依赖关系）：
-
-```bash
-curl -X POST "http://localhost:8081/api/information/upload" \
-  -F "file=@D:/images/demo.jpg" \
-  -F "title=仅区县示例" \
-  -F "districtCode=district-only"
-```
-
-成功时 `data` 为完整图片元数据，其中 `id` 用于后续查询、更新和删除。新记录中的三个行政区字段均为非 `null` 字符串；例如仅提供上述 districtCode 时：
+响应中的公开图片对象：
 
 ```json
 {
-  "provinceCode": "",
-  "cityCode": "",
-  "districtCode": "district-only"
+  "imageId": "<stable-business-image-id>",
+  "fileName": "second.png",
+  "fileSize": 12345,
+  "contentType": "image/png",
+  "width": 1280,
+  "height": 720,
+  "thumbnailUrl": "/api/information/<informationId>/images/<imageId>/thumbnail",
+  "originalUrl": "/api/information/<informationId>/images/<imageId>/original"
 }
 ```
 
-缺少行政区字段不会返回 400。上传接口的 400 参数错误仅包括 `file` 为空或 `title` 为空等必填参数问题。与旧版本相比，此前因 cityCode 或 districtCode 缺失、为空或仅含空白而返回 400 的请求，现在会上传成功并将对应字段保存为 `""`。
+`imageId` 是前端稳定业务 ID；删除接口不得传入 GridFS ID。
 
-## 2. 分页查询
+### 批量删除
 
-- 地址：`POST /api/information/list`
-- Content-Type：`application/json`
-- `page` 默认 `1`，`size` 默认 `10`；`tag` 为模糊匹配，`uploader`、`provinceCode`、`cityCode`、`districtCode` 为精确匹配；多个条件同时提供时取交集。行政区筛选值缺失或仅含空白时忽略该条件，因此当前不支持专门查询行政区字段为空的记录。
+`POST /api/information/image/delete`，JSON：
 
 ```json
 {
-  "page": 1,
-  "size": 10,
-  "tag": "风景",
-  "uploader": "zhangsan",
-  "provinceCode": "110000",
-  "cityCode": "110100",
-  "districtCode": "110101"
+  "informationId": "<informationId>",
+  "imageIds": ["<imageId-1>", "<imageId-2>"]
 }
 ```
 
-成功时 `data` 包含 `total`、`page`、`size` 和 `records`。
+重复、无效、已删除或不属于该足迹的 ID 不会导致整体失败，响应会报告 `requestedCount`、`deletedCount`、`ignoredImageIds`、`remainingCount`。允许删除最后一张图片，足迹仍保留。
 
-## 3. 查询图片详情
+### 图片分页
 
-- 地址：`POST /api/information/detail`
-- Content-Type：`application/json`
+`POST /api/information/image/list`，JSON：
 
 ```json
-{
-  "id": "66a1b2c3d4e5f67890123456"
-}
+{ "informationId": "<informationId>", "page": 1, "size": 10 }
 ```
 
-成功时 `data` 包含图片元数据和 `imageBase64` 图片内容。
+按图片添加顺序返回 `total`、`page`、`size`、`records`；每项为上面的公开图片对象。没有图片时返回 `code=200`、`message="该足迹没有图片"`、`total=0` 与空 records。
 
-## 4. 更新图片
+## 浏览器访问图片
 
-- 地址：`POST /api/information/update`
-- Content-Type：`multipart/form-data`
-- 必填参数：`id`
-- 可选参数：`file`、`title`、`description`、`tags`、`uploader`。仅更新实际提交的非空字段；`provinceCode`、`cityCode` 和 `districtCode` 不属于更新接口参数，无法通过该接口修改或补录空值，响应仍返回原有值。
+- 缩略图：`GET /api/information/{informationId}/images/{imageId}/thumbnail`
+- 原图：`GET /api/information/{informationId}/images/{imageId}/original`
 
-```bash
-curl -X POST "http://localhost:8081/api/information/update" \
-  -F "id=66a1b2c3d4e5f67890123456" \
-  -F "title=更新后的标题" \
-  -F "tags=风景,夏日"
-```
+两个接口返回 JPEG 或 PNG 二进制而非 JSON，携带长期 `Cache-Control: public, max-age=31536000, immutable` 与 `X-Content-Type-Options: nosniff`。原图还包含 `Content-Disposition: inline`。图片不属于该足迹、已删除或文件缺失时返回 HTTP 404。
 
-如需替换图片，在请求中额外提交 `file`。更新成功或替换图片成功时，`uploadTime` 更新为当前时间，`createTime` 保持不变。
+## 发布前历史数据清理
 
-## 5. 删除图片
-
-- 地址：`POST /api/information/delete`
-- Content-Type：`application/json`
-
-```json
-{
-  "id": "66a1b2c3d4e5f67890123456"
-}
-```
-
-成功时 `data` 为 `null`；系统同时删除 GridFS 中的文件及对应元数据。
+该版本不兼容旧单图记录。维护窗口内先停止旧版本写入，运行清理脚本预览并核对范围；正式执行只能删除历史 `image_metadata` 引用的 GridFS 文件及所有历史 `image_metadata`，不得清空共享 bucket。完成后再部署新版本并执行创建、列表、详情、新增、删除、分页和两种图片访问冒烟测试。

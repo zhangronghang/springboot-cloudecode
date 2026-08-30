@@ -57,3 +57,22 @@ mongorestore --uri="mongodb://127.0.0.1:27017/claude_code" --drop "D:\backup\cla
 ```
 
 恢复后再部署旧版本应用。请先在非生产环境验证实际备份路径和恢复命令。
+
+## 历史足迹图片数据清理
+
+`clean-legacy-image-metadata.js` 是一次性清理脚本：它删除全部旧 `image_metadata` 记录，并且只删除这些记录中 `gridFsFileId` 明确引用的 GridFS 文件和分块。它不会按 bucket 整体清空 `fs.files` 或 `fs.chunks`，因此不会影响共享 bucket 中不属于旧足迹的文件。
+
+1. 停止旧版本写入，并在维护窗口内执行；先为 `image_metadata` 和受影响的 GridFS 文件备份。
+2. 默认预览（不做任何写入），核对记录数和唯一文件数：
+
+```powershell
+mongosh "mongodb://127.0.0.1:27017/claude_code" --file scripts/mongodb/clean-legacy-image-metadata.js
+```
+
+3. 确认预览、备份和停写均完成后，显式传入 `EXECUTE=true` 执行：
+
+```powershell
+mongosh "mongodb://127.0.0.1:27017/claude_code" --eval "var EXECUTE=true" --file scripts/mongodb/clean-legacy-image-metadata.js
+```
+
+4. 核对汇总中的历史记录数、唯一关联文件数、成功/缺失/失败文件数和 `failedFileIds`；若有失败 ID，保留报告并按 ID 人工处理。脚本会在文件清理后删除所有历史 `image_metadata` 记录，因此请只在确认可放弃旧足迹记录时执行。

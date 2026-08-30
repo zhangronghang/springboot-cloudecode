@@ -1,10 +1,4 @@
-# image-upload Specification
-
-## Purpose
-
-图片上传与足迹备注管理能力：支持以有序图片集合管理足迹的原图与缩略图，并提供安全、稳定的公开访问地址。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 信息管理接口路径
 系统 SHALL 通过 `POST /api/information/upload`、`POST /api/information/list`、`POST /api/information/detail`、`POST /api/information/update`、`POST /api/information/delete`、`POST /api/information/image/add`、`POST /api/information/image/delete` 和 `POST /api/information/image/list` 提供足迹及其图片管理能力，并通过 `GET /api/information/{informationId}/images/{imageId}/thumbnail` 和 `GET /api/information/{informationId}/images/{imageId}/original` 提供图片二进制访问；系统 MUST NOT 恢复任何 `/api/images/*` 旧路径。
@@ -203,6 +197,8 @@
 - **WHEN** 发布前历史记录不存在 cityCode 字段
 - **THEN** 一次性历史清理删除该足迹及其关联图片，新版本不读取、补写或迁移该旧记录
 
+## ADDED Requirements
+
 ### Requirement: 独立新增足迹图片
 系统 SHALL 通过 `POST /api/information/image/add` 接收 informationId 和且仅一个非空 file，为存在且图片数量少于 50 的足迹新增一张图片。新增图片 SHALL 使用稳定业务 imageId，生成原图与缩略图，追加到图片集合末尾，并返回不包含内部文件标识的公开图片数据及永久相对访问地址。
 
@@ -343,3 +339,10 @@
 #### Scenario: 新版本启动
 - **WHEN** 历史清理完成后部署新版本
 - **THEN** 系统仅使用新 images 数组结构，不提供旧单图字段兼容逻辑
+
+## REMOVED Requirements
+
+### Requirement: 历史元数据迁移
+**Reason**: 本次数据模型从单图记录切换为原图与缩略图成对的有序图片集合，用户已决定放弃全部历史足迹和历史图片，不再迁移旧时间或行政区字段。
+
+**Migration**: 在维护窗口停止旧版本写入，先预览并正式执行新的历史足迹清理脚本，只删除历史足迹引用的 GridFS 文件和全部 `image_metadata` 记录，然后部署新版本。
